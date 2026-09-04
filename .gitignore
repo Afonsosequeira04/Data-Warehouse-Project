@@ -1,0 +1,12 @@
+# Operating System
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.*
+
+# Build artifacts
+target/
+dbt_packages/
+logs/
