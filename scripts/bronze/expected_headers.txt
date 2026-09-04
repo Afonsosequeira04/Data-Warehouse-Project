@@ -1,0 +1,13 @@
+# Expected CSV headers for source files.
+# One section per source folder. Format: "filename.csv|col1,col2,col3"
+# Used by scripts/bronze/validate_headers.sh
+
+[source_crm]
+cust_info.csv|cst_id,cst_key,cst_firstname,cst_lastname,cst_marital_status,cst_gndr,cst_create_date
+prd_info.csv|prd_id,prd_key,prd_nm,prd_cost,prd_line,prd_start_dt,prd_end_dt
+sales_details.csv|sls_ord_num,sls_prd_key,sls_cust_id,sls_order_dt,sls_ship_dt,sls_due_dt,sls_sales,sls_quantity,sls_price
+
+[source_erp]
+CUST_AZ12.csv|CID,BDATE,GEN
+LOC_A101.csv|CID,CNTRY
+PX_CAT_G1V2.csv|ID,CAT,SUBCAT,MAINTENANCE

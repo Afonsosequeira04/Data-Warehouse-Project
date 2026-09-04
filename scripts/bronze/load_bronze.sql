@@ -17,6 +17,10 @@
 --             transient (locked file, brief I/O hiccup). A missing
 --             file (undefined_file) is NOT retried, since retrying
 --             won't make a nonexistent file appear.
+--   v4 - Replaced hardcoded /Users/ritamoreda/... paths with a
+--        parameterised `datasets_dir` argument. The procedure now
+--        builds file paths dynamically via format() + EXECUTE so
+--        it runs on any machine without editing the script.
 --
 -- Source: translated from a YouTube data warehouse tutorial
 -- originally written for SQL Server; adapted here for Postgres.
@@ -41,6 +45,11 @@ CREATE TABLE IF NOT EXISTS bronze.load_errors (
 -- =============================================================
 -- Procedure: bronze.load_bronze
 -- =============================================================
+-- Arguments:
+--     p_datasets_dir  absolute path to the directory that contains
+--                     the source_crm/ and source_erp/ sub-folders.
+--                     Example: '/Users/ritamoreda/Desktop/Data-Warehouse-Project-main/datasets'
+--
 -- Script Purpose:
 --     Loads data into the 'bronze' schema tables from external CSV
 --     files. Each table is truncated before loading, so calling
@@ -59,9 +68,12 @@ CREATE TABLE IF NOT EXISTS bronze.load_errors (
 --     the whole batch.
 --
 -- Usage:
---     CALL bronze.load_bronze();
+--     -- from psql, after \set datasets_dir `/absolute/path/to/datasets`
+--     CALL bronze.load_bronze(:'datasets_dir');
+--     -- or pass the path directly:
+--     CALL bronze.load_bronze('/abs/path/to/datasets');
 -- =============================================================
-CREATE OR REPLACE PROCEDURE bronze.load_bronze()
+CREATE OR REPLACE PROCEDURE bronze.load_bronze(p_datasets_dir TEXT)
 LANGUAGE plpgsql
 AS $$
 DECLARE
@@ -76,6 +88,7 @@ DECLARE
     retry_delay_sec  NUMERIC := 2;   -- pause between retry attempts
     attempt          INT;
     loaded           BOOLEAN;
+    file_path        TEXT;
 BEGIN
     batch_start_time := clock_timestamp();
 
@@ -86,14 +99,12 @@ BEGIN
     start_time := clock_timestamp();
     attempt := 0;
     loaded  := FALSE;
+    file_path := p_datasets_dir || '/source_crm/cust_info.csv';
     WHILE attempt < max_retries AND NOT loaded LOOP
         attempt := attempt + 1;
         BEGIN
             TRUNCATE TABLE bronze.crm_cust_info;
-            COPY bronze.crm_cust_info
-            FROM '/Users/ritamoreda/Desktop/source_crm/cust_info.csv'
-            DELIMITER ','
-            CSV HEADER;
+            EXECUTE format('COPY bronze.crm_cust_info FROM %L DELIMITER '','' CSV HEADER', file_path);
             loaded := TRUE;
             success_count := success_count + 1;
         EXCEPTION
@@ -129,14 +140,12 @@ BEGIN
     start_time := clock_timestamp();
     attempt := 0;
     loaded  := FALSE;
+    file_path := p_datasets_dir || '/source_crm/prd_info.csv';
     WHILE attempt < max_retries AND NOT loaded LOOP
         attempt := attempt + 1;
         BEGIN
             TRUNCATE TABLE bronze.crm_prd_info;
-            COPY bronze.crm_prd_info
-            FROM '/Users/ritamoreda/Desktop/source_crm/prd_info.csv'
-            DELIMITER ','
-            CSV HEADER;
+            EXECUTE format('COPY bronze.crm_prd_info FROM %L DELIMITER '','' CSV HEADER', file_path);
             loaded := TRUE;
             success_count := success_count + 1;
         EXCEPTION
@@ -172,14 +181,12 @@ BEGIN
     start_time := clock_timestamp();
     attempt := 0;
     loaded  := FALSE;
+    file_path := p_datasets_dir || '/source_crm/sales_details.csv';
     WHILE attempt < max_retries AND NOT loaded LOOP
         attempt := attempt + 1;
         BEGIN
             TRUNCATE TABLE bronze.crm_sales_details;
-            COPY bronze.crm_sales_details
-            FROM '/Users/ritamoreda/Desktop/source_crm/sales_details.csv'
-            DELIMITER ','
-            CSV HEADER;
+            EXECUTE format('COPY bronze.crm_sales_details FROM %L DELIMITER '','' CSV HEADER', file_path);
             loaded := TRUE;
             success_count := success_count + 1;
         EXCEPTION
@@ -215,14 +222,12 @@ BEGIN
     start_time := clock_timestamp();
     attempt := 0;
     loaded  := FALSE;
+    file_path := p_datasets_dir || '/source_erp/CUST_AZ12.csv';
     WHILE attempt < max_retries AND NOT loaded LOOP
         attempt := attempt + 1;
         BEGIN
             TRUNCATE TABLE bronze.erp_cust_az12;
-            COPY bronze.erp_cust_az12
-            FROM '/Users/ritamoreda/Desktop/source_erp/CUST_AZ12.csv'
-            DELIMITER ','
-            CSV HEADER;
+            EXECUTE format('COPY bronze.erp_cust_az12 FROM %L DELIMITER '','' CSV HEADER', file_path);
             loaded := TRUE;
             success_count := success_count + 1;
         EXCEPTION
@@ -258,14 +263,12 @@ BEGIN
     start_time := clock_timestamp();
     attempt := 0;
     loaded  := FALSE;
+    file_path := p_datasets_dir || '/source_erp/LOC_A101.csv';
     WHILE attempt < max_retries AND NOT loaded LOOP
         attempt := attempt + 1;
         BEGIN
             TRUNCATE TABLE bronze.erp_loc_a101;
-            COPY bronze.erp_loc_a101
-            FROM '/Users/ritamoreda/Desktop/source_erp/LOC_A101.csv'
-            DELIMITER ','
-            CSV HEADER;
+            EXECUTE format('COPY bronze.erp_loc_a101 FROM %L DELIMITER '','' CSV HEADER', file_path);
             loaded := TRUE;
             success_count := success_count + 1;
         EXCEPTION
@@ -301,14 +304,12 @@ BEGIN
     start_time := clock_timestamp();
     attempt := 0;
     loaded  := FALSE;
+    file_path := p_datasets_dir || '/source_erp/PX_CAT_G1V2.csv';
     WHILE attempt < max_retries AND NOT loaded LOOP
         attempt := attempt + 1;
         BEGIN
             TRUNCATE TABLE bronze.erp_px_cat_g1v2;
-            COPY bronze.erp_px_cat_g1v2
-            FROM '/Users/ritamoreda/Desktop/source_erp/PX_CAT_G1V2.csv'
-            DELIMITER ','
-            CSV HEADER;
+            EXECUTE format('COPY bronze.erp_px_cat_g1v2 FROM %L DELIMITER '','' CSV HEADER', file_path);
             loaded := TRUE;
             success_count := success_count + 1;
         EXCEPTION
@@ -350,7 +351,10 @@ $$;
 -- =============================================================
 -- Run the load
 -- =============================================================
-CALL bronze.load_bronze();
+-- Set the datasets_dir psql variable (defaults to this script's
+-- sibling datasets/ folder). Override with:
+--   psql ... -v datasets_dir=/your/path/to/datasets
+CALL bronze.load_bronze(:'datasets_dir');
 
 
 -- =============================================================

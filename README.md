@@ -133,24 +133,24 @@ data-warehouse-project/
 
 1. **Create the database**
    ```sql
-   CREATE DATABASE data_warehouse;
+    CREATE DATABASE data_warehouse_project;
    ```
 
 2. **Build the Bronze layer** — creates raw tables and loads source CSVs as-is
-   ```bash
-   psql -d data_warehouse -f scripts/bronze/ddl_bronze.sql
-   psql -d data_warehouse -f scripts/bronze/load_bronze.sql
+    ```bash
+    psql -d data_warehouse_project -f scripts/bronze/ddl_bronze.sql
+    psql -d data_warehouse_project -v datasets_dir="$(pwd)/datasets" -f scripts/bronze/load_bronze.sql
    ```
 
 3. **Build the Silver layer** — cleanses, standardizes, and enriches Bronze data
    ```bash
-   psql -d data_warehouse -f scripts/silver/ddl_silver.sql
-   psql -d data_warehouse -f scripts/silver/load_silver.sql
+    psql -d data_warehouse_project -f scripts/silver/ddl_silver.sql
+    psql -d data_warehouse_project -f scripts/silver/load_silver.sql
    ```
 
 4. **Build the Gold layer** — creates the business-facing views
    ```bash
-   psql -d data_warehouse -f scripts/gold/ddl_gold.sql
+    psql -d data_warehouse_project -f scripts/gold/ddl_gold.sql
    ```
 
 5. **Query the Gold layer**

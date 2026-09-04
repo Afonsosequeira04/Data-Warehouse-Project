@@ -250,5 +250,7 @@ EXCEPTION WHEN OTHERS THEN
 END;
 $$;
 
--- Run separately once ready to actually populate the tables:
--- CALL silver.load_silver();
+-- =============================================================
+-- Run the load
+-- =============================================================
+CALL silver.load_silver();
