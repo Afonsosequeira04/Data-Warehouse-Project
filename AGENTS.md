@@ -2,7 +2,7 @@
 
 ## 🚧 Modernization in progress
 - Roadmap: see `PLANO_MODERNIZACAO.md` in repo root — phased plan (dbt, Docker, Airflow, CI/CD, live lineage via OpenLineage/Marquez).
-- Current phase: **Fase 0 (higiene e fundação) — in progress.**
+- Current phase: **Fase 1 (completar camada Gold) — not started yet.**
 - Rule for agents: only implement the phase explicitly requested in the prompt. Do not jump ahead to a later phase even if it seems convenient. Update this section's "Current phase" line when a phase is merged.
 
 ## 🏗️ Architecture
