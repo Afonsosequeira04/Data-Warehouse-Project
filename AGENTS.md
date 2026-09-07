@@ -2,7 +2,7 @@
 
 ## 🚧 Modernization in progress
 - Roadmap: see `PLANO_MODERNIZACAO.md` in repo root — phased plan (dbt, Docker, Airflow, CI/CD, live lineage via OpenLineage/Marquez).
-- Current phase: **Fase 1 (completar camada Gold) — not started yet.**
+- Current phase: **Fase 2 (containerização — Docker Compose) — not started yet.**
 - Rule for agents: only implement the phase explicitly requested in the prompt. Do not jump ahead to a later phase even if it seems convenient. Update this section's "Current phase" line when a phase is merged.
 
 ## 🏗️ Architecture
@@ -14,7 +14,7 @@
 - **CSV Path Configuration:** `scripts/bronze/load_bronze.sql` now uses a parameterised `datasets_dir` argument. Pass it via `psql -v datasets_dir="<path>"` (see Command 3). No more manual edits to hardcoded paths.
 - **Header Validation:** Run `scripts/bronze/validate_headers.sh` to fail early if source CSV headers don't match `expected_headers.txt` — do this *before* the Bronze Load.
 - **Database Name:** All scripts now use `data_warehouse_project` consistently (fix applied in Fase 0).
-- **Missing Layer:** Gold layer (DDL + views) doesn't exist yet — this is the main functional gap (Fase 1).
+- **Gold Layer:** Now implemented (Fase 1) as views in `scripts/gold/`. See `docs/data_catalog.md` for column definitions.
 - **Silver Load:** The `CALL silver.load_silver()` is now included in `scripts/silver/load_silver.sql` and will execute when the script is run.
 
 ## 🚀 Commands
@@ -24,6 +24,7 @@
 4. **Bronze Load:** `psql -d data_warehouse_project -v datasets_dir="$(pwd)/datasets" -f scripts/bronze/load_bronze.sql` (Sets the source CSV path via psql variable.)
 5. **Silver DDL:** `psql -d data_warehouse_project -f scripts/silver/ddl_silver.sql`
 6. **Silver Load:** `psql -d data_warehouse_project -f scripts/silver/load_silver.sql` (includes the `CALL silver.load_silver()` statement).
+7. **Gold DDL:** `psql -d data_warehouse_project -f scripts/gold/ddl_gold.sql` (creates dimension + fact views).
 
 ## ✅ Data Quality
 - Bronze load uses a stored procedure `bronze.load_bronze()` with persistent error logging in `bronze.load_errors`.
