@@ -100,36 +100,67 @@ ERP (CSV files)  ┘
 data-warehouse-project/
 │
 ├── datasets/                  # Raw source CSV files (CRM, ERP)
-│   ├── crm/
-│   └── erp/
+│   ├── source_crm/
+│   └── source_erp/
+│
+├── infra/                     # Docker Compose & environment config
+│   ├── docker-compose.yml
+│   └── .env.example
 │
 ├── scripts/
+│   ├── init_database.sql      # Creates database + schemas
 │   ├── bronze/                # DDL + load scripts: raw ingestion
 │   ├── silver/                # DDL + transform scripts: cleansing, standardization
 │   └── gold/                  # View definitions: star schema, business logic
 │
 ├── docs/
 │   ├── data_warehouse_project.drawio   # Architecture diagram
-│   ├── data_catalog.md                 # Field-level documentation of Gold objects
-│   └── naming_conventions.md           # Table/column naming standards
+│   └── data_catalog.md                 # Field-level documentation of Gold objects
 │
 ├── tests/                     # Data quality checks (row counts, null checks, etc.)
 │
 └── README.md
 ```
 
-> Adjust folder names above to match your actual repo layout if it differs.
-
 ---
 
 ## ⚙️ Setup & Usage
 
 ### Prerequisites
-- PostgreSQL (13+ recommended)
-- `psql` CLI or a client such as pgAdmin / DBeaver
+- Docker & Docker Compose (recommended)
+- **OR** PostgreSQL (13+) + `psql` CLI for legacy manual setup
 - CRM and ERP source CSV files placed under `datasets/`
 
-### Steps
+### Option A — Docker Compose (Recommended, Fase 2+)
+
+The easiest way to run the full pipeline. All paths are handled automatically.
+
+```bash
+# 1. Copy the example environment file and adjust if needed
+cp infra/.env.example infra/.env
+
+# 2. Run the complete pipeline (Bronze → Silver → Gold)
+make all
+```
+
+**Step-by-step (if you want to inspect each layer):**
+```bash
+make up              # Start Postgres container
+make init-db         # Drop/recreate database + schemas
+make validate-headers  # Validate CSV headers on host (fail-fast)
+make load-bronze     # Load Bronze layer (server-side COPY from /data/datasets)
+make load-silver     # Load Silver layer
+make load-gold       # Create Gold layer views
+
+# Utilities
+make psql            # Open psql shell in container
+make logs            # Follow container logs
+make down            # Stop container (preserves data volume)
+```
+
+### Option B — Legacy psql (Manual)
+
+If you prefer not to use Docker, you can run the scripts directly against a local PostgreSQL instance. You must manage paths manually.
 
 1. **Create the database**
    ```sql
@@ -137,9 +168,9 @@ data-warehouse-project/
    ```
 
 2. **Build the Bronze layer** — creates raw tables and loads source CSVs as-is
-    ```bash
-    psql -d data_warehouse_project -f scripts/bronze/ddl_bronze.sql
-    psql -d data_warehouse_project -v datasets_dir="$(pwd)/datasets" -f scripts/bronze/load_bronze.sql
+   ```bash
+   psql -d data_warehouse_project -f scripts/bronze/ddl_bronze.sql
+   psql -d data_warehouse_project -v datasets_dir="$(pwd)/datasets" -f scripts/bronze/load_bronze.sql
    ```
 
 3. **Build the Silver layer** — cleanses, standardizes, and enriches Bronze data
@@ -191,4 +222,4 @@ Each layer includes basic checks before promotion to the next:
 
 ## 📄 License
 
-Add your preferred license here (e.g. MIT).
+This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.

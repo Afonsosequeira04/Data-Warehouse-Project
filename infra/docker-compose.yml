@@ -1,0 +1,23 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: dw_postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-data_warehouse}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-data_warehouse}
+      POSTGRES_DB: ${POSTGRES_DB:-data_warehouse_project}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ${DATASETS_DIR_HOST:-../datasets}:/data/datasets:ro
+      - ../scripts:/scripts:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-data_warehouse} -d ${POSTGRES_DB:-data_warehouse_project}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+volumes:
+  postgres_data:
