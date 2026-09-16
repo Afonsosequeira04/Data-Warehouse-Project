@@ -68,12 +68,12 @@ Observado por logs, alertas e dashboards de qualidade de dados.
 ### Fase 0 — Higiene e fundação
 **Objetivo:** parar a sangria antes de construir por cima.
 
-- [ ] Resolver os caminhos hardcoded do `load_bronze_layer.sql` — usar variável de ambiente ou `\set` do psql, apontando para `datasets/` do próprio repo (caminho relativo/local).
-- [ ] Alinhar nomes: escolher uma convenção única de ficheiros (`ddl_bronze.sql`, `load_bronze.sql`, `ddl_silver.sql`, `load_silver.sql`) e atualizar README para bater certo com o que existe.
-- [ ] Corrigir a divergência do nome da base de dados (README diz `data_warehouse`, script cria `data_warehouse_project`) — fixar `data_warehouse_project` em todo o lado.
-- [ ] Adicionar `.gitignore` (`.DS_Store`, `.env`, `target/`, `dbt_packages/`, `logs/`) e remover `.DS_Store` já versionados.
-- [ ] Descomentar/mover o `CALL silver.load_silver()` para um script de execução separado da definição do procedure (separar "definir" de "correr").
-- [ ] Validação leve de schema antes do `COPY`: script `scripts/bronze/validate_headers.sh` que compara a primeira linha (header) de cada CSV em `datasets/` contra uma lista de colunas esperadas (`scripts/bronze/expected_headers.txt`, um manifesto por fonte). Falha cedo com mensagem clara se uma fonte mudar de colunas, em vez de o `COPY` falhar a meio do batch ou carregar dados desalinhados silenciosamente. Corre antes do `CALL bronze.load_bronze()` — e mais tarde antes da task de extração no DAG da Fase 5. (Não substitui os testes dbt da Fase 4 — esses validam o *conteúdo*; isto valida a *forma* do ficheiro antes de ele sequer chegar à Bronze.)
+- [x] Resolver os caminhos hardcoded do `load_bronze_layer.sql` — usar variável de ambiente ou `\set` do psql, apontando para `datasets/` do próprio repo (caminho relativo/local).
+- [x] Alinhar nomes: escolher uma convenção única de ficheiros (`ddl_bronze.sql`, `load_bronze.sql`, `ddl_silver.sql`, `load_silver.sql`) e atualizar README para bater certo com o que existe.
+- [x] Corrigir a divergência do nome da base de dados (README diz `data_warehouse`, script cria `data_warehouse_project`) — fixar `data_warehouse_project` em todo o lado.
+- [x] Adicionar `.gitignore` (`.DS_Store`, `.env`, `target/`, `dbt_packages/`, `logs/`) e remover `.DS_Store` já versionados.
+- [x] Descomentar/mover o `CALL silver.load_silver()` para um script de execução separado da definição do procedure (separar "definir" de "correr").
+- [x] Validação leve de schema antes do `COPY`: script `scripts/bronze/validate_headers.sh` que compara a primeira linha (header) de cada CSV em `datasets/` contra uma lista de colunas esperadas (`scripts/bronze/expected_headers.txt`, um manifesto por fonte). Falha cedo com mensagem clara se uma fonte mudar de colunas, em vez de o `COPY` falhar a meio do batch ou carregar dados desalinhados silenciosamente. Corre antes do `CALL bronze.load_bronze()` — e mais tarde antes da task de extração no DAG da Fase 5. (Não substitui os testes dbt da Fase 4 — esses validam o *conteúdo*; isto valida a *forma* do ficheiro antes de ele sequer chegar à Bronze.)
 
 **Definition of Done:** `psql` corre bronze + silver de ponta a ponta em qualquer máquina, só configurando uma variável de ambiente — e falha imediatamente, com mensagem clara, se uma fonte mudar de schema antes mesmo de tentar o `COPY`.
 
@@ -82,13 +82,13 @@ Observado por logs, alertas e dashboards de qualidade de dados.
 ### Fase 1 — Completar a Gold layer (em SQL puro, antes da migração para dbt)
 **Objetivo:** o maior buraco funcional do projeto deixa de existir.
 
-- [ ] `gold.dim_customers` — merge de `crm_cust_info` + `erp_cust_az12` + `erp_loc_a101`, com chave surrogate (`customer_key`), critério de prioridade definido para campos conflituosos (ex.: género vem do CRM, cai para ERP se nulo).
-- [ ] `gold.dim_products` — merge de `crm_prd_info` + `erp_px_cat_g1v2`, chave surrogate, produtos correntes (ou preparado para histórico na Fase 6).
-- [ ] `gold.fact_sales` — junta `crm_sales_details` às duas dimensões via as chaves surrogate, mantém as métricas (`sls_sales`, `sls_quantity`, `sls_price`).
-- [ ] Decidir: views (sempre frescas, simples) vs tabelas materializadas (mais rápidas, precisam de refresh). Recomendação: começar com views; passar a tabelas/materialized views só se a performance pedir.
-- [ ] Decidir e documentar já a chave de particionamento de `gold.fact_sales`, mesmo mantendo-a como view nesta fase — recomendação: `RANGE` por mês/ano sobre a data de venda (`sls_order_dt`, já vem tratada da Silver). Fixar a chave agora evita ter de redesenhar o grain quando a tabela passar a materializada (Fase 3) ou incremental (Fase 6) — nessa altura só muda a estratégia de armazenamento, não a chave.
-- [ ] Quando `fact_sales` passar a tabela (materialized view ou modelo dbt materializado), aplicar particionamento nativo do Postgres (`PARTITION BY RANGE`) nessa coluna e indexar as chaves surrogate (`customer_key`, `product_key`) por partição — evita full scan nos joins com as dimensões à medida que o volume cresce.
-- [ ] Atualizar `docs/data_catalog.md` com definições reais de coluna (o README já promete isto), com a chave de particionamento decidida, e com o diagrama de lineage em Mermaid (ver Anexo A no fim deste documento) — texto, não PNG, para o agente conseguir ler o design sem precisar de visão. Os dois diagramas atuais (`data_warehouse_project.drawio` e `bronze_silver_gold_data_flow_styled.png`) mantêm-se como estão nesta fase — só revisitar quando a Fase 3/5 mudarem a arquitetura que eles descrevem.
+- [x] `gold.dim_customers` — merge de `crm_cust_info` + `erp_cust_az12` + `erp_loc_a101`, com chave surrogate (`customer_key`), critério de prioridade definido para campos conflituosos (ex.: género vem do CRM, cai para ERP se nulo).
+- [x] `gold.dim_products` — merge de `crm_prd_info` + `erp_px_cat_g1v2`, chave surrogate, produtos correntes (ou preparado para histórico na Fase 6).
+- [x] `gold.fact_sales` — junta `crm_sales_details` às duas dimensões via as chaves surrogate, mantém as métricas (`sls_sales`, `sls_quantity`, `sls_price`).
+- [x] Decidir: views (sempre frescas, simples) vs tabelas materializadas (mais rápidas, precisam de refresh). Recomendação: começar com views; passar a tabelas/materialized views só se a performance pedir.
+- [x] Decidir e documentar já a chave de particionamento de `gold.fact_sales`, mesmo mantendo-a como view nesta fase — recomendação: `RANGE` por mês/ano sobre a data de venda (`sls_order_dt`, já vem tratada da Silver). Fixar a chave agora evita ter de redesenhar o grain quando a tabela passar a materializada (Fase 3) ou incremental (Fase 6) — nessa altura só muda a estratégia de armazenamento, não a chave.
+- [x] Quando `fact_sales` passar a tabela (materialized view ou modelo dbt materializado), aplicar particionamento nativo do Postgres (`PARTITION BY RANGE`) nessa coluna e indexar as chaves surrogate (`customer_key`, `product_key`) por partição — evita full scan nos joins com as dimensões à medida que o volume cresce.
+- [x] Atualizar `docs/data_catalog.md` com definições reais de coluna (o README já promete isto), com a chave de particionamento decidida, e com o diagrama de lineage em Mermaid (ver Anexo A no fim deste documento) — texto, não PNG, para o agente conseguir ler o design sem precisar de visão. Os dois diagramas atuais (`data_warehouse_project.drawio` e `bronze_silver_gold_data_flow_styled.png`) mantêm-se como estão nesta fase — só revisitar quando a Fase 3/5 mudarem a arquitetura que eles descrevem.
 
 **Definition of Done:** `SELECT * FROM gold.fact_sales` devolve dados corretos e reconciliáveis com a Silver.
 
@@ -97,10 +97,10 @@ Observado por logs, alertas e dashboards de qualidade de dados.
 ### Fase 2 — Containerização (Docker Compose)
 **Objetivo:** "funciona na minha máquina" deixa de ser um problema.
 
-- [ ] `infra/docker-compose.yml` — serviço `postgres` (com volume para persistência) + volume read-only para `datasets/` montado num caminho fixo (`/data/...`).
-- [ ] `infra/.env.example` — credenciais/porta da BD, documentado no README.
-- [ ] Scripts de ingestão passam a referenciar o caminho do container, não o caminho do host — resolve definitivamente o problema da Fase 0.
-- [ ] `Makefile` ou scripts curtos (`make up`, `make init-db`, `make load-bronze`) para bootstrap num só comando.
+- [x] `infra/docker-compose.yml` — serviço `postgres` (com volume para persistência) + volume read-only para `datasets/` montado num caminho fixo (`/data/...`).
+- [x] `infra/.env.example` — credenciais/porta da BD, documentado no README.
+- [x] Scripts de ingestão passam a referenciar o caminho do container, não o caminho do host — resolve definitivamente o problema da Fase 0.
+- [x] `Makefile` ou scripts curtos (`make up`, `make init-db`, `make load-bronze`) para bootstrap num só comando.
 
 **Definition of Done:** um colega clona o repo, corre `make up && make init-db && make load-bronze` e tem a Bronze populada sem tocar em caminhos.
 
