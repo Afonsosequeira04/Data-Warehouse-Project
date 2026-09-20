@@ -1,8 +1,18 @@
-# Data Catalog — Gold Layer
+# Data Catalog — Gold Layer / Marts
 
 This document describes the columns and data lineage of every object
-in the `gold` schema. It is the single source of truth for analysts,
-BI developers, and data scientists consuming the warehouse.
+in the `gold` schema (legacy) and `marts` schema (dbt). It is the single
+source of truth for analysts, BI developers, and data scientists
+consuming the warehouse.
+
+> **Nota (Fase 3):** A partir da Fase 3, a camada Gold (legacy views em `gold.*`)
+> e a camada Silver (legacy tables em `silver.*`) são mantidas em `legacy_sql/`
+> apenas para referência histórica e reconciliação. A fonte de verdade para
+> transformações passa a ser o **dbt** — modelos em `dbt_project/models/`
+> (staging em `staging.*`, marts em `marts.*`). A documentação oficial de
+> colunas, testes e lineage é gerada automaticamente via `dbt docs generate`
+> (veja `make dbt-docs`). Este arquivo `data_catalog.md` permanece como
+> referência histórica do design da Fase 1.
 
 ---
 
