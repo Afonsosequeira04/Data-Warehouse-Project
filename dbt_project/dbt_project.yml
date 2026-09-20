@@ -1,0 +1,28 @@
+name: 'data_warehouse_project'
+version: '1.0.0'
+config-version: 2
+
+profile: 'data_warehouse_project'
+
+model-paths: ["models"]
+analysis-paths: ["analyses"]
+test-paths: ["tests"]
+seed-paths: ["seeds"]
+macro-paths: ["macros"]
+snapshot-paths: ["snapshots"]
+
+clean-targets:
+  - "target"
+  - "dbt_packages"
+
+models:
+  data_warehouse_project:
+    staging:
+      +materialized: table
+      +schema: staging
+    marts:
+      +materialized: view
+      +schema: marts
+
+flags:
+  send_anonymous_usage_stats: false
