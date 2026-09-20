@@ -1,0 +1,146 @@
+version: 2
+
+models:
+  - name: stg_crm__cust_info
+    description: "CRM customer info — deduped by cst_id (latest by cst_create_date), names trimmed, marital_status/gender standardized"
+    columns:
+      - name: cst_id
+        description: "Customer ID (primary key after dedupe)"
+        tests:
+          - not_null
+          - unique
+      - name: cst_key
+        description: "Business key for customer"
+      - name: cst_firstname
+        description: "First name (trimmed)"
+      - name: cst_lastname
+        description: "Last name (trimmed)"
+      - name: cst_marital_status
+        description: "Marital status: Single, Married, or n/a"
+        tests:
+          - accepted_values:
+              values: ['Single', 'Married', 'n/a']
+      - name: cst_gndr
+        description: "Gender: Female, Male, or n/a"
+        tests:
+          - accepted_values:
+              values: ['Female', 'Male', 'n/a']
+      - name: cst_create_date
+        description: "Customer creation date"
+      - name: dwh_source_system
+        description: "Source system identifier (CRM)"
+      - name: dwh_create_date
+        description: "dbt load timestamp"
+
+  - name: stg_crm__prd_info
+    description: "CRM product info — prd_key split into cat_id/prd_key, cost defaulted to 0, prd_line standardized, prd_end_dt computed from next start_dt"
+    columns:
+      - name: prd_id
+        description: "Product ID"
+        tests:
+          - not_null
+      - name: cat_id
+        description: "Category ID (from prd_key prefix)"
+      - name: prd_key
+        description: "Product business key (from prd_key suffix)"
+      - name: prd_nm
+        description: "Product name"
+      - name: prd_cost
+        description: "Product cost (0 if null)"
+        tests:
+          - not_null
+      - name: prd_line
+        description: "Product line: Mountain, Road, Other Sales, Touring, or n/a"
+        tests:
+          - accepted_values:
+              values: ['Mountain', 'Road', 'Other Sales', 'Touring', 'n/a']
+      - name: prd_start_dt
+        description: "Product start date"
+      - name: prd_end_dt
+        description: "Product end date (computed from next version's start_dt - 1 day)"
+      - name: dwh_source_system
+        description: "Source system identifier (CRM)"
+      - name: dwh_create_date
+        description: "dbt load timestamp"
+
+  - name: stg_crm__sales_details
+    description: "CRM sales details — INT dates converted to DATE (0/invalid -> NULL), sales/price recalculated when missing or inconsistent"
+    columns:
+      - name: sls_ord_num
+        description: "Sales order number"
+        tests:
+          - not_null
+      - name: sls_prd_key
+        description: "Product key (FK to dim_products)"
+      - name: sls_cust_id
+        description: "Customer ID (FK to dim_customers)"
+      - name: sls_order_dt
+        description: "Order date (converted from INT YYYYMMDD)"
+      - name: sls_ship_dt
+        description: "Ship date (converted from INT YYYYMMDD)"
+      - name: sls_due_dt
+        description: "Due date (converted from INT YYYYMMDD)"
+      - name: sls_sales
+        description: "Sales amount (recalculated = quantity * abs(price) when inconsistent)"
+      - name: sls_quantity
+        description: "Sales quantity"
+      - name: sls_price
+        description: "Unit price (recalculated = sales/quantity when missing)"
+      - name: dwh_source_system
+        description: "Source system identifier (CRM)"
+      - name: dwh_create_date
+        description: "dbt load timestamp"
+
+  - name: stg_erp__cust_az12
+    description: "ERP customer AZ12 — NAS prefix stripped from cid, future birthdates nulled, gender standardized"
+    columns:
+      - name: cid
+        description: "Customer ID (cleaned, matches crm_cust_info.cst_key)"
+        tests:
+          - not_null
+          - unique
+      - name: bdate
+        description: "Birth date (NULL if in future)"
+      - name: gen
+        description: "Gender: Female, Male, or n/a"
+        tests:
+          - accepted_values:
+              values: ['Female', 'Male', 'n/a']
+      - name: dwh_source_system
+        description: "Source system identifier (ERP)"
+      - name: dwh_create_date
+        description: "dbt load timestamp"
+
+  - name: stg_erp__loc_a101
+    description: "ERP location A101 — dashes stripped from cid, country codes standardized"
+    columns:
+      - name: cid
+        description: "Customer ID (cleaned, matches erp_cust_az12.cid)"
+        tests:
+          - not_null
+          - unique
+      - name: cntry
+        description: "Country: Germany, United States, or n/a"
+      - name: dwh_source_system
+        description: "Source system identifier (ERP)"
+      - name: dwh_create_date
+        description: "dbt load timestamp"
+
+  - name: stg_erp__px_cat
+    description: "ERP product category G1V2 — loaded as-is (already clean)"
+    columns:
+      - name: id
+        description: "Category ID (matches cat_id from CRM)"
+        tests:
+          - not_null
+          - unique
+      - name: cat
+        description: "Category name"
+      - name: subcat
+        description: "Subcategory name"
+      - name: maintenance
+        description: "Maintenance flag"
+      - name: dwh_source_system
+        description: "Source system identifier (ERP)"
+      - name: dwh_create_date
+        description: "dbt load timestamp"
