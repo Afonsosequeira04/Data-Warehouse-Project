@@ -19,6 +19,7 @@ When — and only when — **every Definition of Done item of the phase has been
 1. Update the "Current phase" line above to the next phase, using its title from `PLANO_MODERNIZACAO.md`: `**Fase N+1 (<title>) — not started yet.**` If the closed phase was Fase 9, write `**Roadmap complete.**`
 2. Tick the closed phase's checkboxes (`- [x]`) in `PLANO_MODERNIZACAO.md`. Tick only what was really done.
 3. Make sure `README.md` and this file match reality (commands, targets and paths that they mention must exist).
+4. Update `docs/HUB.md`: mark the closed phase ✅ and the next one 🔜 in the status table and the roadmap diagram (`:::done` / `:::next`), update the **Status** line, and refresh row counts or tool availability if they changed.
 
 Guardrails:
 - This must be the **last commit of the phase's work**. Only housekeeping commits explicitly authorized by the owner may follow it. The line reaches `main` only when the owner merges the PR.
@@ -38,7 +39,7 @@ The repo is **PUBLIC** — everything pushed is visible to anyone. Steps:
 4. Stop. The owner reviews and merges the PR. Never merge, close, approve or mark ready any PR.
 
 ### Post-merge cleanup
-The merge happens on GitHub and you cannot know when it was approved, so run this only in two situations: (a) the owner asks (e.g. "cleanup Fase N"); (b) automatically as the first step of the next phase, before creating its branch. Never at any other time.
+The merge happens on GitHub and you cannot know when it was approved, so run this only in two situations: (a) the owner asks (e.g. "cleanup Fase N"); (b) automatically as the first step of the next phase or chore, before creating its branch, for every leftover local phase or chore branch that is already merged. Never at any other time.
 1. `git fetch origin --prune`
 2. Verify the previous phase branch is really merged: `git merge-base --is-ancestor <phase-branch> origin/main` must succeed. If it fails (PR not merged, or squash/rebase-merged), stop, report and ask the owner; delete nothing and, in case (b), do not start the new phase. If the branch no longer exists locally, there is nothing to clean up: continue.
 3. `git checkout main && git pull --ff-only origin main`. Local `main` must end identical to `origin/main` (`git rev-parse main origin/main` gives the same hash, `git status` clean). Never use `git reset --hard` or force-push; if the fast-forward fails, stop and report.
@@ -53,6 +54,7 @@ The merge happens on GitHub and you cannot know when it was approved, so run thi
 - **Destructive commands:** `make init-db` and `make all` / `make all-dbt` drop the whole warehouse database. Run them only when the prompt asks for it or after confirming with the owner.
 - **Processes, services and volumes:** never kill processes or stop services outside this project's Docker containers (e.g. a local Postgres). Never run `docker compose down -v` unless the prompt asks for it. If a port is busy, stop and report.
 - **Stop instead of improvising:** if a tool is missing (Docker not running, Python < 3.10, busy port 5432) or a validation shows unexplained differences, stop and report. Do not install anything globally.
+- **Chores (non-phase work):** use a `chore/<name>` branch created from an up-to-date `main`. No Phase closing, and never touch the "Current phase" line. Publishing (push + PR) only when the prompt asks for it, following the Publishing steps.
 
 ## 🏗️ Architecture
 - **Stack:** PostgreSQL 16 (Docker Compose) + `psql` CLI for ingestion + dbt-core / dbt-postgres for transformations.
@@ -65,7 +67,7 @@ The merge happens on GitHub and you cannot know when it was approved, so run thi
   - `scripts/` — `init_database.sql` and `bronze/` (DDL, load procedure, header validation). Bronze ingestion stays outside dbt.
   - `legacy_sql/` — legacy `silver/` and `gold/` scripts (mounted read-only into the container at `/legacy_sql`)
   - `dbt_project/` — `models/staging`, `models/marts`, `macros/`, `profiles.yml`, `requirements.txt`
-  - `docs/` — `data_catalog.md`, diagrams, `baseline_fase3.md`, `validacao_fase3.md`
+  - `docs/` — `HUB.md` (project hub: roadmap, lineage, tools, ports), `data_catalog.md`, diagrams, `baseline_fase3.md`, `validacao_fase3.md`
 
 ## 🧱 dbt conventions
 - Naming: `stg_<source>__<table>` for staging (e.g. `stg_crm__cust_info`), `dim_*` and `fct_*` for marts.
