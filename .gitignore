@@ -5,8 +5,10 @@ Thumbs.db
 # Environment
 .env
 .env.*
+!.env.example
 
 # Build artifacts
 target/
 dbt_packages/
 logs/
+.venv/

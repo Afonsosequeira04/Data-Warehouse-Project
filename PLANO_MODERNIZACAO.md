@@ -109,13 +109,13 @@ Observado por logs, alertas e dashboards de qualidade de dados.
 ### Fase 3 — Migração para dbt
 **Objetivo:** a lógica de transformação ganha testes, documentação e lineage de borla.
 
-- [ ] `dbt_project/` inicializado, ligado ao Postgres do Docker Compose.
-- [ ] `models/staging/` — a lógica da Silver atual migrada para modelos dbt (`stg_crm__cust_info`, `stg_crm__prd_info`, `stg_crm__sales_details`, `stg_erp__cust_az12`, `stg_erp__loc_a101`, `stg_erp__px_cat`), seguindo a convenção de nomenclatura dbt.
-- [ ] `models/staging/_sources.yml` — declara `bronze.*` como sources, com testes de freshness se fizer sentido.
-- [ ] `models/marts/` — a lógica da Gold da Fase 1 migrada para `dim_customers`, `dim_products`, `fct_sales`.
-- [ ] Testes dbt: `not_null` e `unique` nas chaves, `relationships` entre `fct_sales` e as dimensões, `accepted_values` para género/estado civil/linha de produto.
-- [ ] `dbt docs generate` — catálogo de dados e grafo de lineage automáticos (substitui a manutenção manual do `data_catalog.md`).
-- [ ] Manter os scripts SQL antigos em `legacy_sql/` como referência durante a transição (remover só quando o dbt estiver validado a produzir os mesmos resultados).
+- [x] `dbt_project/` inicializado, ligado ao Postgres do Docker Compose.
+- [x] `models/staging/` — a lógica da Silver atual migrada para modelos dbt (`stg_crm__cust_info`, `stg_crm__prd_info`, `stg_crm__sales_details`, `stg_erp__cust_az12`, `stg_erp__loc_a101`, `stg_erp__px_cat`), seguindo a convenção de nomenclatura dbt.
+- [x] `models/staging/_sources.yml` — declara `bronze.*` como sources, com testes de freshness se fizer sentido.
+- [x] `models/marts/` — a lógica da Gold da Fase 1 migrada para `dim_customers`, `dim_products`, `fct_sales`.
+- [x] Testes dbt: `not_null` e `unique` nas chaves, `relationships` entre `fct_sales` e as dimensões, `accepted_values` para género/estado civil/linha de produto.
+- [x] `dbt docs generate` — catálogo de dados e grafo de lineage automáticos (substitui a manutenção manual do `data_catalog.md`).
+- [x] Manter os scripts SQL antigos em `legacy_sql/` como referência durante a transição (remover só quando o dbt estiver validado a produzir os mesmos resultados).
 
 **Definition of Done:** `dbt build` corre staging + marts + todos os testes sem falhas, e `dbt docs serve` mostra o lineage completo Fontes → Bronze → Staging → Marts.
 

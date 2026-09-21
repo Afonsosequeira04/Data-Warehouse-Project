@@ -13,7 +13,7 @@
 
 \echo 'Loading Gold layer...'
 
-\i scripts/gold/ddl_gold.sql
+\i legacy_sql/gold/ddl_gold.sql
 
 \echo ''
 \echo 'Gold layer views created.'

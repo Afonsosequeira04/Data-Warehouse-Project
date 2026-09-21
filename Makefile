@@ -11,7 +11,7 @@
 # (/data/datasets), not the host path.
 # =============================================================
 
-.PHONY: up down logs psql init-db validate-headers load-bronze load-silver load-gold all help
+.PHONY: up down logs psql init-db validate-headers load-bronze load-silver load-gold load-silver-legacy load-gold-legacy all all-dbt dbt-setup dbt-build dbt-docs help
 
 # Load environment variables from .env if present
 ifneq ("$(wildcard infra/.env)","")
@@ -37,16 +37,21 @@ PG_CONN = postgresql://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@localhost:$(POSTGRE
 help:
 	@echo "Data Warehouse Project — Make targets"
 	@echo ""
-	@echo "  make up              Start the Postgres container"
-	@echo "  make down            Stop and remove the container (keeps volume)"
-	@echo "  make logs            Follow container logs"
-	@echo "  make psql            Open psql shell in the container"
-	@echo "  make init-db         Drop/recreate database and schemas (runs init_database.sql)"
-	@echo "  make validate-headers Validate CSV headers on host (run before load-bronze)"
-	@echo "  make load-bronze     Load Bronze layer (requires running container)"
-	@echo "  make load-silver     Load Silver layer (requires Bronze loaded)"
-	@echo "  make load-gold       Create Gold layer views"
-	@echo "  make all             Run full pipeline: up -> init-db -> validate-headers -> load-bronze -> load-silver -> load-gold"
+	@echo "  make up                    Start the Postgres container"
+	@echo "  make down                  Stop and remove the container (keeps volume)"
+	@echo "  make logs                  Follow container logs"
+	@echo "  make psql                  Open psql shell in the container"
+	@echo "  make init-db               Drop/recreate database and schemas (runs init_database.sql)"
+	@echo "  make validate-headers      Validate CSV headers on host (run before load-bronze)"
+	@echo "  make load-bronze           Load Bronze layer (requires running container)"
+	@echo "  make load-silver-legacy    Load Silver layer (legacy plain SQL)"
+	@echo "  make load-gold-legacy      Create Gold layer views (legacy plain SQL)"
+	@echo "  make all                   Legacy pipeline: up -> init-db -> validate-headers -> load-bronze -> load-silver-legacy -> load-gold-legacy"
+	@echo ""
+	@echo "  make dbt-setup             Create .venv (Python >= 3.10) and install dbt from requirements.txt"
+	@echo "  make dbt-build             dbt build: staging + marts + tests (always the full build)"
+	@echo "  make dbt-docs              dbt docs generate + serve (owner only; blocks the terminal)"
+	@echo "  make all-dbt               dbt pipeline: up -> init-db -> validate-headers -> load-bronze -> dbt-build"
 	@echo ""
 
 # -------------------------------------------------------------
@@ -115,25 +120,64 @@ load-bronze: up
 	$(COMPOSE_CMD) exec -T postgres psql -U $(POSTGRES_USER) -d $(POSTGRES_DB) -v datasets_dir="$(DATASETS_DIR_CONTAINER)" -f /scripts/bronze/load_bronze.sql
 
 # -------------------------------------------------------------
-# load-silver — run Silver DDL + load
+# load-silver-legacy — run Silver DDL + load (legacy plain SQL)
 # -------------------------------------------------------------
-load-silver: up
+load-silver-legacy: up
 	@echo "Creating Silver tables..."
-	$(COMPOSE_CMD) exec -T postgres psql -U $(POSTGRES_USER) -d $(POSTGRES_DB) -f /scripts/silver/ddl_silver.sql
+	$(COMPOSE_CMD) exec -T postgres psql -U $(POSTGRES_USER) -d $(POSTGRES_DB) -f /legacy_sql/silver/ddl_silver.sql
 	@echo "Loading Silver data..."
-	$(COMPOSE_CMD) exec -T postgres psql -U $(POSTGRES_USER) -d $(POSTGRES_DB) -f /scripts/silver/load_silver.sql
+	$(COMPOSE_CMD) exec -T postgres psql -U $(POSTGRES_USER) -d $(POSTGRES_DB) -f /legacy_sql/silver/load_silver.sql
 
 # -------------------------------------------------------------
-# load-gold — run Gold DDL (creates views)
+# load-gold-legacy — run Gold DDL (creates views, legacy plain SQL)
 # -------------------------------------------------------------
-load-gold: up
+load-gold-legacy: up
 	@echo "Creating Gold layer views..."
-	$(COMPOSE_CMD) exec -T postgres psql -U $(POSTGRES_USER) -d $(POSTGRES_DB) -f /scripts/gold/ddl_gold.sql
+	$(COMPOSE_CMD) exec -T postgres psql -U $(POSTGRES_USER) -d $(POSTGRES_DB) -f /legacy_sql/gold/ddl_gold.sql
 
 # -------------------------------------------------------------
-# all — full pipeline from zero to Gold
+# dbt-setup — create .venv and install dbt requirements
 # -------------------------------------------------------------
-all: up init-db validate-headers load-bronze load-silver load-gold
+dbt-setup:
+	@echo "Setting up dbt environment..."
+	@if [ ! -d .venv ]; then \
+		echo "Creating .venv with python3..."; \
+		python3 -m venv .venv; \
+	fi
+	@.venv/bin/pip install --upgrade pip >/dev/null 2>&1
+	@.venv/bin/pip install -r dbt_project/requirements.txt
+	@echo "dbt setup complete."
+
+# -------------------------------------------------------------
+# dbt-build — run full dbt build (staging + marts + tests)
+# -------------------------------------------------------------
+dbt-build:
+	@echo "Running dbt build..."
+	@.venv/bin/dbt build --project-dir dbt_project --profiles-dir dbt_project
+
+# -------------------------------------------------------------
+# dbt-docs — generate and serve dbt docs
+# -------------------------------------------------------------
+dbt-docs:
+	@echo "Generating dbt docs..."
+	@.venv/bin/dbt docs generate --project-dir dbt_project --profiles-dir dbt_project
+	@echo "Starting dbt docs server (blocks terminal)..."
+	@.venv/bin/dbt docs serve --project-dir dbt_project --profiles-dir dbt_project
+
+# -------------------------------------------------------------
+# all-dbt — full dbt pipeline from zero to Marts
+# -------------------------------------------------------------
+all-dbt: up init-db validate-headers load-bronze dbt-build
+	@echo ""
+	@echo "========================================================"
+	@echo "dbt pipeline complete! Marts are ready for queries."
+	@echo "Run 'make dbt-docs' to view documentation."
+	@echo "========================================================"
+
+# -------------------------------------------------------------
+# all — full legacy pipeline from zero to Gold
+# -------------------------------------------------------------
+all: up init-db validate-headers load-bronze load-silver-legacy load-gold-legacy
 	@echo ""
 	@echo "========================================================"
 	@echo "Pipeline complete! Gold layer is ready for queries."

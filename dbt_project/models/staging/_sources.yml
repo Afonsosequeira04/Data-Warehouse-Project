@@ -1,0 +1,18 @@
+version: 2
+
+sources:
+  - name: bronze
+    description: "Bronze layer — raw data loaded via psql COPY from CSV"
+    tables:
+      - name: crm_cust_info
+        description: "CRM customer information"
+      - name: crm_prd_info
+        description: "CRM product information"
+      - name: crm_sales_details
+        description: "CRM sales order details"
+      - name: erp_cust_az12
+        description: "ERP customer additional data (AZ12)"
+      - name: erp_loc_a101
+        description: "ERP customer location data (A101)"
+      - name: erp_px_cat_g1v2
+        description: "ERP product category hierarchy (PX_CAT_G1V2)"

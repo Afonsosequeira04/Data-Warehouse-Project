@@ -1,0 +1,124 @@
+version: 2
+
+models:
+  - name: dim_customers
+    description: "Customer dimension — merge of CRM + ERP customer data, surrogate key customer_key"
+    columns:
+      - name: customer_key
+        description: "Surrogate key (auto-incrementing integer)"
+        tests:
+          - not_null
+          - unique
+      - name: customer_id
+        description: "Business key (CRM cst_key or ERP cid)"
+      - name: crm_customer_id
+        description: "CRM customer ID (cst_id)"
+      - name: erp_customer_id
+        description: "ERP customer ID (cid)"
+      - name: customer_full_name
+        description: "Full name (firstname + lastname)"
+      - name: customer_first_name
+        description: "First name"
+      - name: customer_last_name
+        description: "Last name"
+      - name: marital_status
+        description: "Marital status: Married, Single, or n/a"
+        tests:
+          - accepted_values:
+              values: ['Married', 'Single', 'n/a']
+      - name: gender
+        description: "Gender: Female, Male, or n/a"
+        tests:
+          - accepted_values:
+              values: ['Female', 'Male', 'n/a']
+      - name: birth_date
+        description: "Birth date (from ERP)"
+      - name: country
+        description: "Country (from ERP location)"
+      - name: customer_create_date
+        description: "Customer creation date (from CRM)"
+      - name: crm_source_system
+        description: "CRM source system"
+      - name: erp_source_system
+        description: "ERP source system"
+      - name: dwh_create_date
+        description: "dbt load timestamp"
+
+  - name: dim_products
+    description: "Product dimension — merge of CRM product + ERP category, latest version per prd_key"
+    columns:
+      - name: product_key
+        description: "Surrogate key (auto-incrementing integer)"
+        tests:
+          - not_null
+          - unique
+      - name: product_key_business
+        description: "Business key (prd_key from CRM)"
+      - name: crm_product_id
+        description: "CRM product ID (prd_id)"
+      - name: category_id
+        description: "Category ID (cat_id from CRM)"
+      - name: product_name
+        description: "Product name"
+      - name: product_cost
+        description: "Product cost"
+      - name: product_line
+        description: "Product line: Mountain, Road, Other Sales, Touring, or n/a"
+        tests:
+          - accepted_values:
+              values: ['Mountain', 'Road', 'Other Sales', 'Touring', 'n/a']
+      - name: product_start_date
+        description: "Product start date"
+      - name: product_end_date
+        description: "Product end date"
+      - name: category
+        description: "Category name (from ERP)"
+      - name: subcategory
+        description: "Subcategory name (from ERP)"
+      - name: maintenance_required
+        description: "Maintenance flag (from ERP)"
+      - name: dwh_create_date
+        description: "dbt load timestamp"
+
+  - name: fct_sales
+    description: "Sales fact table — joins sales details to customer and product dimensions via surrogate keys"
+    columns:
+      - name: sales_key
+        description: "Surrogate key (auto-incrementing integer)"
+        tests:
+          - not_null
+          - unique
+      - name: sales_order_number
+        description: "Sales order number (sls_ord_num)"
+      - name: customer_key
+        description: "FK to dim_customers.customer_key"
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_customers')
+              field: customer_key
+      - name: product_key
+        description: "FK to dim_products.product_key"
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_products')
+              field: product_key
+      - name: erp_customer_ref
+        description: "ERP customer reference (sls_cust_id)"
+      - name: product_business_key
+        description: "Product business key (sls_prd_key)"
+      - name: order_date
+        description: "Order date"
+      - name: ship_date
+        description: "Ship date"
+      - name: due_date
+        description: "Due date"
+      - name: sales_amount
+        description: "Sales amount (sls_sales)"
+      - name: sales_quantity
+        description: "Sales quantity"
+      - name: unit_price
+        description: "Unit price (sls_price)"
+      - name: dwh_create_date
+        description: "dbt load timestamp"
