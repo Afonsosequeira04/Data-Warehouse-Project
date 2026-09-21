@@ -9,6 +9,7 @@ A modern data warehouse built on **PostgreSQL**, following the **Medallion Archi
 
 ## 🔗 Useful Links
 
+- 🧭 [Project Hub](docs/HUB.md) — roadmap, lineage, tools and how to start
 - 📝 [Project Notion](https://app.notion.com/p/Data-Warehouse-Project-3c745b08c0b680ffa7fed0b348f511d0?source=copy_link) — planning, notes, and project steps
 - 📐 [`docs/data_warehouse_project.drawio`](https://github.com/Afonsosequeira04/Data-Warehouse-Project/blob/main/docs/data_warehouse_project.drawio) — architecture diagram source (open in [draw.io](https://app.diagrams.net/))
 
