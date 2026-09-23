@@ -2,7 +2,7 @@
 
 One page to see the whole project: where it stands, how data flows, which tool shows what, and how to start it. GitHub renders the diagrams below natively.
 
-**Status:** Fase 3 closed · Fase 4 is next · updated September 2026
+**Status:** Fase 4 closed · Fase 5 is next · updated September 2026
 
 Quick links: [Roadmap](../PLANO_MODERNIZACAO.md) · [Agent rules](../AGENTS.md) · [Data catalog](data_catalog.md) · [README](../README.md) · [Pull requests](https://github.com/Afonsosequeira04/Data-Warehouse-Project/pulls) · [Notion](https://app.notion.com/p/Data-Warehouse-Project-3c745b08c0b680ffa7fed0b348f511d0?source=copy_link)
 
@@ -14,11 +14,11 @@ Quick links: [Roadmap](../PLANO_MODERNIZACAO.md) · [Agent rules](../AGENTS.md) 
 flowchart TB
   subgraph DONE["Done"]
     direction LR
-    F0["0 · Hygiene"]:::done --> F1["1 · Gold layer"]:::done --> F2["2 · Docker"]:::done --> F3["3 · dbt"]:::done
+    F0["0 · Hygiene"]:::done --> F1["1 · Gold layer"]:::done --> F2["2 · Docker"]:::done --> F3["3 · dbt"]:::done --> F4["4 · Data quality"]:::done
   end
   subgraph NEXT["Next and planned"]
     direction LR
-    F4["4 · Data quality"]:::next --> F5["5 · Airflow"]:::planned --> F6["6 · History and<br/>incremental"]:::planned --> F7["7 · CI/CD"]:::planned --> F8["8 · Observability<br/>and live lineage"]:::planned --> F9["9 · BI"]:::planned
+    F5["5 · Airflow"]:::next --> F6["6 · History and<br/>incremental"]:::planned --> F7["7 · CI/CD"]:::planned --> F8["8 · Observability<br/>and live lineage"]:::planned --> F9["9 · BI"]:::planned
   end
   DONE --> NEXT
   classDef done fill:#d1fae5,stroke:#059669,color:#064e3b
@@ -32,8 +32,8 @@ flowchart TB
 | 1 · Gold layer | Complete the Gold layer in plain SQL | ✅ Done |
 | 2 · Containerization | Postgres + pipeline in Docker Compose | ✅ Done |
 | 3 · dbt migration | Silver/Gold logic as dbt models, tests, docs | ✅ Done |
-| 4 · Advanced data quality | An invalid source row never goes unnoticed (test results and/or quarantine) | 🔜 Next |
-| 5 · Orchestration (Airflow) | The pipeline runs itself from the Airflow UI, with retries and alerts | ⏳ Planned |
+| 4 · Advanced data quality | An invalid source row never goes unnoticed (test results and/or quarantine) | ✅ Done |
+| 5 · Orchestration (Airflow) | The pipeline runs itself from the Airflow UI, with retries and alerts | 🔜 Next |
 | 6 · History and incremental loads | Stop losing history on full reloads (e.g. gender change creates a new dimension row) | ⏳ Planned |
 | 7 · CI/CD | No PR with a failing dbt test can be merged unnoticed | ⏳ Planned |
 | 8 · Observability and live lineage | Answer "did the pipeline run well yesterday?" from a dashboard, and watch lineage live in Marquez | ⏳ Planned |
@@ -54,6 +54,12 @@ flowchart LR
     b4["erp_cust_az12"]
     b5["erp_loc_a101"]
     b6["erp_px_cat_g1v2"]
+  end
+
+  subgraph QUARANTINE["quarantine · dbt tables (Fase 4)"]
+    q1["rejected_crm_cust_info"]
+    q2["rejected_crm_sales_details"]
+    q3["rejected_erp_cust_az12"]
   end
 
   subgraph STAGING["staging · dbt tables"]
@@ -78,6 +84,10 @@ flowchart LR
   b5 --> s5
   b6 --> s6
 
+  b1 -.-> q1
+  b3 -.-> q2
+  b4 -.-> q3
+
   s1 --> dc
   s4 --> dc
   s5 --> dc
@@ -94,7 +104,7 @@ flowchart LR
 
 Solid arrows are the live dbt pipeline. Dotted arrows are the original plain-SQL Silver/Gold, kept only to reconcile the dbt output (see [validation](validacao_fase3.md)).
 
-### Warehouse at a glance (Fase 3 baseline, see [baseline](baseline_fase3.md))
+### Warehouse at a glance (Fase 4 baseline, see [quarantine report](quarentena_fase4.md))
 
 | Source table | Bronze rows | Staging rows |
 |---|---:|---:|
@@ -104,6 +114,12 @@ Solid arrows are the live dbt pipeline. Dotted arrows are the original plain-SQL
 | erp_cust_az12 | 18,484 | 18,484 |
 | erp_loc_a101 | 18,484 | 18,484 |
 | erp_px_cat_g1v2 | 37 | 37 |
+
+| Quarantine table | Rows | Captures |
+|---|---:|---|
+| rejected_crm_cust_info | 4 | cst_id IS NULL (dropped by staging dedupe) |
+| rejected_crm_sales_details | 35 | sls_sales or sls_price invalid (silently recalculated in staging) |
+| rejected_erp_cust_az12 | 16 | bdate > CURRENT_DATE (silently nulled in staging) |
 
 | Mart | Rows |
 |---|---:|
@@ -166,9 +182,9 @@ make all           # legacy pipeline (bronze -> silver -> gold), for comparison
 | `datasets/` | Source CSVs (CRM and ERP) |
 | `infra/` | `docker-compose.yml` and `.env.example` |
 | `scripts/` | Database init and Bronze ingestion (stays outside dbt) |
-| `dbt_project/` | dbt models (`staging`, `marts`), macros, profiles, tests |
+| `dbt_project/` | dbt models (`staging`, `marts`, `quarantine`), macros, profiles, tests |
 | `legacy_sql/` | Original Silver and Gold SQL, kept for reconciliation |
-| `docs/` | This hub, the [data catalog](data_catalog.md), baseline and validation reports |
+| `docs/` | This hub, the [data catalog](data_catalog.md), baseline, validation and quarantine reports |
 
 ---
 
