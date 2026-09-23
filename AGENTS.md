@@ -2,7 +2,7 @@
 
 ## 🚧 Modernization in progress
 - Roadmap: see `PLANO_MODERNIZACAO.md` in repo root — phased plan (dbt, Docker, Airflow, CI/CD, live lineage via OpenLineage/Marquez).
-- Current phase: **Fase 4 (Qualidade de dados avançada) — not started yet.**
+- Current phase: **Fase 5 (Orquestração) — not started yet.**
 - Rule for agents: only implement the phase explicitly requested in the prompt. Do not jump ahead to a later phase even if it seems convenient.
 - **Branch workflow (mandatory):** before touching any file, run `git branch` to check the current branch. If on `main`, create and switch to the phase branch first (`git checkout -b fase-N-nome`). Never commit phase work directly to `main` — all phase work is committed to its own branch and merged via Pull Request, reviewed by the project owner before merge. Never merge and never push to `main` yourself.
 

@@ -19,12 +19,14 @@ models:
         description: "Marital status: Single, Married, or n/a"
         tests:
           - accepted_values:
-              values: ['Single', 'Married', 'n/a']
+              arguments:
+                values: ['Single', 'Married', 'n/a']
       - name: cst_gndr
         description: "Gender: Female, Male, or n/a"
         tests:
           - accepted_values:
-              values: ['Female', 'Male', 'n/a']
+              arguments:
+                values: ['Female', 'Male', 'n/a']
       - name: cst_create_date
         description: "Customer creation date"
       - name: dwh_source_system
@@ -53,7 +55,8 @@ models:
         description: "Product line: Mountain, Road, Other Sales, Touring, or n/a"
         tests:
           - accepted_values:
-              values: ['Mountain', 'Road', 'Other Sales', 'Touring', 'n/a']
+              arguments:
+                values: ['Mountain', 'Road', 'Other Sales', 'Touring', 'n/a']
       - name: prd_start_dt
         description: "Product start date"
       - name: prd_end_dt
@@ -90,6 +93,12 @@ models:
         description: "Source system identifier (CRM)"
       - name: dwh_create_date
         description: "dbt load timestamp"
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - sls_ord_num
+              - sls_prd_key
 
   - name: stg_erp__cust_az12
     description: "ERP customer AZ12 — NAS prefix stripped from cid, future birthdates nulled, gender standardized"
@@ -105,7 +114,8 @@ models:
         description: "Gender: Female, Male, or n/a"
         tests:
           - accepted_values:
-              values: ['Female', 'Male', 'n/a']
+              arguments:
+                values: ['Female', 'Male', 'n/a']
       - name: dwh_source_system
         description: "Source system identifier (ERP)"
       - name: dwh_create_date

@@ -124,9 +124,9 @@ Observado por logs, alertas e dashboards de qualidade de dados.
 ### Fase 4 — Qualidade de dados avançada
 **Objetivo:** ir além dos testes genéricos do dbt.
 
-- [ ] Adicionar `dbt-utils` para testes compostos (ex.: unicidade de combinação de colunas).
-- [ ] Testes singulares (SQL custom) para regras de negócio específicas (ex.: `sls_sales = sls_quantity * sls_price` sempre que ambos existem).
-- [ ] Estratégia de quarentena: linhas que falham validação vão para uma tabela `*_rejected` em vez de serem silenciosamente descartadas ou nulificadas.
+- [x] Adicionar `dbt-utils` para testes compostos (ex.: unicidade de combinação de colunas).
+- [x] Testes singulares (SQL custom) para regras de negócio específicas (ex.: `sls_sales = sls_quantity * sls_price` sempre que ambos existem).
+- [x] Estratégia de quarentena: linhas que falham validação vão para uma tabela `*_rejected` em vez de serem silenciosamente descartadas ou nulificadas.
 - [ ] (Opcional, se o projeto crescer para "produção" a sério) avaliar Great Expectations/Soda para expectation suites mais ricas.
 
 **Definition of Done:** uma linha inválida no CSV de origem não passa despercebida — aparece nos resultados de teste e/ou numa tabela de quarentena.

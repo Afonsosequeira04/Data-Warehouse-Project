@@ -1,0 +1,12 @@
+version: 2
+
+tests:
+  - name: assert_fct_sales_amount_equals_quantity_times_price
+    description: "Validates that sales_amount equals sales_quantity * unit_price (within 0.01 tolerance). Excludes rows with null quantity or price. This is a regression guard for the recalculation logic in staging."
+    config:
+      severity: error
+
+  - name: assert_sales_dates_are_chronological
+    description: "Validates that order_date <= ship_date and order_date <= due_date when all three dates are present. Fails on genuinely inconsistent legacy data — do not adjust to pass silently."
+    config:
+      severity: error

@@ -25,12 +25,14 @@ models:
         description: "Marital status: Married, Single, or n/a"
         tests:
           - accepted_values:
-              values: ['Married', 'Single', 'n/a']
+              arguments:
+                values: ['Married', 'Single', 'n/a']
       - name: gender
         description: "Gender: Female, Male, or n/a"
         tests:
           - accepted_values:
-              values: ['Female', 'Male', 'n/a']
+              arguments:
+                values: ['Female', 'Male', 'n/a']
       - name: birth_date
         description: "Birth date (from ERP)"
       - name: country
@@ -66,7 +68,8 @@ models:
         description: "Product line: Mountain, Road, Other Sales, Touring, or n/a"
         tests:
           - accepted_values:
-              values: ['Mountain', 'Road', 'Other Sales', 'Touring', 'n/a']
+              arguments:
+                values: ['Mountain', 'Road', 'Other Sales', 'Touring', 'n/a']
       - name: product_start_date
         description: "Product start date"
       - name: product_end_date
@@ -95,15 +98,17 @@ models:
         tests:
           - not_null
           - relationships:
-              to: ref('dim_customers')
-              field: customer_key
+              arguments:
+                to: ref('dim_customers')
+                field: customer_key
       - name: product_key
         description: "FK to dim_products.product_key"
         tests:
           - not_null
           - relationships:
-              to: ref('dim_products')
-              field: product_key
+              arguments:
+                to: ref('dim_products')
+                field: product_key
       - name: erp_customer_ref
         description: "ERP customer reference (sls_cust_id)"
       - name: product_business_key

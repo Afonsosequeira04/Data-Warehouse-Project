@@ -1,0 +1,84 @@
+version: 2
+
+models:
+  - name: rejected_crm_cust_info
+    description: "Quarantine table — rows from bronze.crm_cust_info with cst_id IS NULL (dropped by staging dedupe). Preserves original columns plus rejection_reason."
+    columns:
+      - name: cst_id
+        description: "Customer ID (NULL in these rejected rows)"
+        tests:
+          - not_null:
+              config:
+                severity: warn
+      - name: cst_key
+        description: "Customer business key"
+      - name: cst_firstname
+        description: "First name"
+      - name: cst_lastname
+        description: "Last name"
+      - name: cst_marital_status
+        description: "Marital status"
+      - name: cst_gndr
+        description: "Gender"
+      - name: cst_create_date
+        description: "Customer creation date"
+      - name: dwh_source_system
+        description: "Source system identifier (CRM)"
+      - name: dwh_create_date
+        description: "Quarantine load timestamp"
+      - name: rejection_reason
+        description: "Why this row was quarantined"
+        tests:
+          - not_null
+
+  - name: rejected_crm_sales_details
+    description: "Quarantine table — rows from bronze.crm_sales_details where original sls_sales or sls_price was invalid (sls_sales IS NULL OR <= 0 OR != sls_quantity * ABS(sls_price); sls_price IS NULL OR <= 0). Preserves original columns plus rejection_reason."
+    columns:
+      - name: sls_ord_num
+        description: "Sales order number"
+        tests:
+          - not_null
+      - name: sls_prd_key
+        description: "Product key"
+      - name: sls_cust_id
+        description: "Customer ID"
+      - name: sls_order_dt
+        description: "Order date (INT)"
+      - name: sls_ship_dt
+        description: "Ship date (INT)"
+      - name: sls_due_dt
+        description: "Due date (INT)"
+      - name: sls_sales
+        description: "Sales amount (original invalid value)"
+      - name: sls_quantity
+        description: "Sales quantity"
+      - name: sls_price
+        description: "Unit price (original invalid value)"
+      - name: dwh_source_system
+        description: "Source system identifier (CRM)"
+      - name: dwh_create_date
+        description: "Quarantine load timestamp"
+      - name: rejection_reason
+        description: "Why this row was quarantined"
+        tests:
+          - not_null
+
+  - name: rejected_erp_cust_az12
+    description: "Quarantine table — rows from bronze.erp_cust_az12 with bdate > CURRENT_DATE (future birthdates, silently nulled in staging). Preserves original columns plus rejection_reason."
+    columns:
+      - name: cid
+        description: "Customer ID"
+        tests:
+          - not_null
+      - name: bdate
+        description: "Birth date (future date in these rejected rows)"
+      - name: gen
+        description: "Gender"
+      - name: dwh_source_system
+        description: "Source system identifier (ERP)"
+      - name: dwh_create_date
+        description: "Quarantine load timestamp"
+      - name: rejection_reason
+        description: "Why this row was quarantined"
+        tests:
+          - not_null
