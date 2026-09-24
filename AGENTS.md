@@ -2,7 +2,7 @@
 
 ## 🚧 Modernization in progress
 - Roadmap: see `PLANO_MODERNIZACAO.md` in repo root — phased plan (dbt, Docker, Airflow, CI/CD, live lineage via OpenLineage/Marquez).
-- Current phase: **Fase 5 (Orquestração) — not started yet.**
+- Current phase: **Fase 6 (Histórico e cargas incrementais) — not started yet.**
 - Rule for agents: only implement the phase explicitly requested in the prompt. Do not jump ahead to a later phase even if it seems convenient.
 - **Branch workflow (mandatory):** before touching any file, run `git branch` to check the current branch. If on `main`, create and switch to the phase branch first (`git checkout -b fase-N-nome`). Never commit phase work directly to `main` — all phase work is committed to its own branch and merged via Pull Request, reviewed by the project owner before merge. Never merge and never push to `main` yourself.
 
@@ -82,9 +82,12 @@ The merge happens on GitHub and you cannot know when it was approved, so run thi
 - **Header Validation:** Run `scripts/bronze/validate_headers.sh` (or `make validate-headers`) to fail early if source CSV headers don't match `expected_headers.txt` — do this *before* the Bronze Load.
 - **Database Name:** All scripts use `data_warehouse_project` consistently.
 - **Busy host port 5432:** a local Postgres (e.g. Postgres.app) listening on `127.0.0.1:5432` shadows the container's `*:5432`, so host tools such as dbt connect to the wrong server (symptom: `role "data_warehouse" does not exist`). Do not kill it. Set `POSTGRES_PORT` (e.g. `5433`) in `infra/.env` — docker-compose maps `${POSTGRES_PORT:-5432}:5432` and dbt reads the same variable — then recreate the container (`make down && make up`).
-- **dbt runs on the host**, inside `.venv` (Python >= 3.10), not in Docker (that changes in Fase 5). Use the `make dbt-*` targets; credentials come from `infra/.env`.
+- **dbt runs in two modes:**
+  - **Host (dev/CI):** inside `.venv` (Python >= 3.10), via `make dbt-*` targets; connects to warehouse Postgres on `localhost:${POSTGRES_PORT}`.
+  - **Airflow (production DAG):** inside the Airflow container (built from `infra/airflow.Dockerfile`), using the same `dbt_project/requirements.txt`; connects to warehouse Postgres on internal hostname `postgres:5432` (Docker network). A named volume `airflow_dbt_target` is mounted at `/opt/airflow/dbt_project/target` for writable dbt artifacts.
 - **Schema names:** dbt writes to `staging` and `marts` thanks to the `generate_schema_name` macro in `dbt_project/macros/`. Without it the schemas become `public_staging` / `public_marts`.
 - **Staging is a TABLE on purpose:** `scripts/bronze/ddl_bronze.sql` uses `DROP TABLE` without `CASCADE`, so dbt views over Bronze would make `make load-bronze` fail. Tables derived with `CREATE TABLE AS` do not block the drop.
+- **CASCADE drop of marts views:** `dbt run --select staging` drops and recreates staging TABLES. Because marts models are VIEWS depending on staging, this CASCADE-drops the marts views. They are recreated only when `dbt run --select marts` runs next. If `dbt test --select staging` fails, the DAG stops and marts remain unavailable until the next successful run — intentional quarantine at orchestration level.
 - **Never run `dbt run` / `dbt build` with `--select staging` alone.** Rebuilding a staging table cascade-drops the marts views that depend on it. Use `--select staging+` or a full `make dbt-build`.
 - **`make init-db` (and therefore `make all` / `make all-dbt`) drops the whole database**, including the dbt schemas. After it, run `make dbt-build` again (`make all-dbt` already does).
 - **Legacy quirk (known, not fixed):** re-running the legacy Silver DDL after the legacy Gold views exist fails on `DROP TABLE` (views depend on the tables), but `psql -f` still exits 0, so `make` reports success. For a legacy rebuild use `make all`.
@@ -114,6 +117,12 @@ make load-gold-legacy    # Legacy Gold views (plain SQL)
 make dbt-setup           # Create .venv (Python >= 3.10) and install dbt from requirements.txt
 make dbt-build           # dbt build: staging + marts + tests (always the full build)
 make dbt-docs            # dbt docs generate + serve (owner only; blocks the terminal)
+
+# Airflow (Fase 5+)
+make airflow-build       # Build custom Airflow image (with dbt + postgresql-client)
+make airflow-up          # Start Postgres + Airflow stack (--profile airflow)
+make airflow-down        # Stop Airflow stack (preserves volumes)
+make airflow-logs        # Follow Airflow container logs
 
 # Utilities
 make psql                # Open psql shell in container

@@ -136,10 +136,10 @@ Observado por logs, alertas e dashboards de qualidade de dados.
 ### Fase 5 — Orquestração (Airflow)
 **Objetivo:** o pipeline deixa de precisar de alguém a correr `psql` à mão.
 
-- [ ] Airflow via Docker Compose (webserver + scheduler + BD de metadados própria, separada da warehouse).
-- [ ] DAG único: `extract_load_bronze` → `dbt run` (staging) → `dbt test` (staging) → `dbt run` (marts) → `dbt test` (marts) → notificação.
-- [ ] Alerta (Slack ou e-mail) `on_failure_callback` em qualquer task que falhe.
-- [ ] Agendamento diário (ou trigger por chegada de ficheiro, se quiseres simular uma fonte real).
+- [x] Airflow via Docker Compose (webserver + scheduler + BD de metadados própria, separada da warehouse).
+- [x] DAG único: `extract_load_bronze` → `dbt run` (staging) → `dbt test` (staging) → `dbt run` (marts) → `dbt test` (marts) → notificação.
+- [x] Alerta (Slack ou e-mail) `on_failure_callback` em qualquer task que falhe.
+- [x] Agendamento diário (ou trigger por chegada de ficheiro, se quiseres simular uma fonte real).
 
 **Definition of Done:** o pipeline inteiro corre sozinho a partir do Airflow UI, com retries automáticos e alerta se falhar.
 
