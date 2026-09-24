@@ -11,7 +11,7 @@
 # (/data/datasets), not the host path.
 # =============================================================
 
-.PHONY: up down logs psql init-db validate-headers load-bronze load-silver load-gold load-silver-legacy load-gold-legacy all all-dbt dbt-setup dbt-build dbt-docs help
+.PHONY: up down logs psql init-db validate-headers load-bronze load-silver load-gold load-silver-legacy load-gold-legacy all all-dbt dbt-setup dbt-build dbt-docs help airflow-build airflow-up airflow-down airflow-logs
 
 # Load environment variables from .env if present
 ifneq ("$(wildcard infra/.env)","")
@@ -52,6 +52,11 @@ help:
 	@echo "  make dbt-build             dbt build: staging + marts + tests (always the full build)"
 	@echo "  make dbt-docs              dbt docs generate + serve (owner only; blocks the terminal)"
 	@echo "  make all-dbt               dbt pipeline: up -> init-db -> validate-headers -> load-bronze -> dbt-build"
+	@echo ""
+	@echo "  make airflow-build         Build Airflow Docker image"
+	@echo "  make airflow-up            Start Postgres + Airflow (with --profile airflow)"
+	@echo "  make airflow-down          Stop Airflow services (preserves volumes)"
+	@echo "  make airflow-logs          Follow Airflow container logs"
 	@echo ""
 
 # -------------------------------------------------------------
@@ -183,3 +188,46 @@ all: up init-db validate-headers load-bronze load-silver-legacy load-gold-legacy
 	@echo "Pipeline complete! Gold layer is ready for queries."
 	@echo "Run 'make psql' to connect and explore."
 	@echo "========================================================"
+
+# ============================================================
+# Airflow targets (--profile airflow)
+# ============================================================
+
+# -------------------------------------------------------------
+# airflow-build — build the custom Airflow image
+# -------------------------------------------------------------
+airflow-build:
+	@echo "Building Airflow Docker image..."
+	$(COMPOSE_CMD) --profile airflow build
+
+# -------------------------------------------------------------
+# airflow-up — start Postgres + Airflow stack
+# -------------------------------------------------------------
+airflow-up: airflow-build
+	@echo "Starting Airflow stack (Postgres + Metadata DB + Webserver + Scheduler)..."
+	$(COMPOSE_CMD) --profile airflow up -d
+	@echo "Waiting for Airflow webserver to be healthy..."
+	@until $(COMPOSE_CMD) --profile airflow exec -T airflow-webserver curl -f http://localhost:8080/health >/dev/null 2>&1; do sleep 3; done
+	@echo ""
+	@echo "========================================================"
+	@echo "Airflow is ready!"
+	@echo "  UI: http://localhost:8080"
+	@echo "  User: \${AIRFLOW_ADMIN_USER:-admin}"
+	@echo "  Pass: \${AIRFLOW_ADMIN_PASSWORD:-admin}"
+	@echo ""
+	@echo "DAG 'dwh_pipeline' will be paused by default."
+	@echo "Enable it in the UI and trigger a run."
+	@echo "========================================================"
+
+# -------------------------------------------------------------
+# airflow-down — stop Airflow services (preserves volumes)
+# -------------------------------------------------------------
+airflow-down:
+	@echo "Stopping Airflow stack..."
+	$(COMPOSE_CMD) --profile airflow down
+
+# -------------------------------------------------------------
+# airflow-logs — follow Airflow container logs
+# -------------------------------------------------------------
+airflow-logs:
+	$(COMPOSE_CMD) --profile airflow logs -f airflow-webserver airflow-scheduler
