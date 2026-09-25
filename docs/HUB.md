@@ -18,7 +18,7 @@ flowchart TB
   end
   subgraph NEXT["Next and planned"]
     direction LR
-    F6["6 · History and<br/>incremental"]:::next --> F7["7 · CI/CD"]:::planned --> F8["8 · Observability<br/>and live lineage"]:::planned --> F9["9 · BI"]:::planned
+    F6["6 · History and<br/>incremental"]:::next --> F7["7 · CI/CD"]:::planned --> F8["8 · Observability<br/>and live lineage"]:::planned --> F9["9 · BI"]:::planned --> F10["10 · Cloud deploy<br/>AWS"]:::planned
   end
   DONE --> NEXT
   classDef done fill:#d1fae5,stroke:#059669,color:#064e3b
@@ -38,6 +38,7 @@ flowchart TB
 | 7 · CI/CD | No PR with a failing dbt test can be merged unnoticed | ⏳ Planned |
 | 8 · Observability and live lineage | Answer "did the pipeline run well yesterday?" from a dashboard, and watch lineage live in Marquez | ⏳ Planned |
 | 9 · Consumption / BI | Dashboards on the marts | ⏳ Planned |
+| 10 · Cloud deploy (AWS + Redshift) | A merge to main deploys the pipeline to AWS, with every environment created by code | ⏳ Planned |
 
 ---
 

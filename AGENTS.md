@@ -16,7 +16,7 @@
 
 ### Phase closing (agent does this, automatically)
 When — and only when — **every Definition of Done item of the phase has been verified by you** (commands run, results seen), make one last commit on the phase branch, titled `docs: close Fase N`, that does exactly this:
-1. Update the "Current phase" line above to the next phase, using its title from `PLANO_MODERNIZACAO.md`: `**Fase N+1 (<title>) — not started yet.**` If the closed phase was Fase 9, write `**Roadmap complete.**`
+1. Update the "Current phase" line above to the next phase, using its title from `PLANO_MODERNIZACAO.md`: `**Fase N+1 (<title>) — not started yet.**` If the closed phase was Fase 10, write `**Roadmap complete.**`
 2. Tick the closed phase's checkboxes (`- [x]`) in `PLANO_MODERNIZACAO.md`. Tick only what was really done.
 3. Make sure `README.md` and this file match reality (commands, targets and paths that they mention must exist).
 4. Update `docs/HUB.md`: mark the closed phase ✅ and the next one 🔜 in the status table and the roadmap diagram (`:::done` / `:::next`), update the **Status** line, and refresh row counts or tool availability if they changed.
