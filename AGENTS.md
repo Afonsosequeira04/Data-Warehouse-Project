@@ -93,7 +93,7 @@ The merge happens on GitHub and you cannot know when it was approved, so run thi
 - **Legacy quirk (known, not fixed):** re-running the legacy Silver DDL after the legacy Gold views exist fails on `DROP TABLE` (views depend on the tables), but `psql -f` still exits 0, so `make` reports success. For a legacy rebuild use `make all`.
 - **`.gitignore` gotcha:** `.env.*` also matches `infra/.env.example`; the file needs `!.env.example` *after* that line. `git check-ignore -v` is misleading with negated patterns — verify with `git status` / `git ls-files` instead.
 - **Never run `dbt docs serve`** from an agent (it blocks the terminal). Run `dbt docs generate`; the owner serves it with `make dbt-docs`.
-- **Legacy Silver Load:** `CALL silver.load_silver()` is included in `legacy_sql/silver/load_silver.sql` and executes when the script is run.
+- **Airflow dbt_packages fix (chore/airflow-hardening):** the `chown -R airflow:root /opt/airflow/dbt_project` in `infra/airflow.Dockerfile` must include the whole `dbt_project` directory (not just `target/`), otherwise `dbt deps` fails with `Permission denied: 'dbt_packages'`. The fix adds `dbt deps` at image build time and a `test -d dbt_packages/dbt_utils || exit 1` guard; the COPY of `dbt_project` is now read-only from host (`.dockerignore` excludes `dbt_packages/`, `target/`, `logs/` from the build context) so packages are always installed fresh in the image.
 
 ## 🚀 Commands
 

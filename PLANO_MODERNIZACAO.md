@@ -140,6 +140,7 @@ Observado por logs, alertas e dashboards de qualidade de dados.
 - [x] DAG único: `extract_load_bronze` → `dbt run` (staging) → `dbt test` (staging) → `dbt run` (marts) → `dbt test` (marts) → notificação.
 - [x] Alerta (Slack ou e-mail) `on_failure_callback` em qualquer task que falhe.
 - [x] Agendamento diário (ou trigger por chegada de ficheiro, se quiseres simular uma fonte real).
+- [x] **Chore: Airflow dbt_packages fix** — o `chown -R airflow:root /opt/airflow/dbt_project` em `infra/airflow.Dockerfile` deve incluir o diretório `dbt_project` completo (não só `target/`), caso contrário o `dbt deps` falha com `Permission denied: 'dbt_packages'`. O fix adiciona `dbt deps` no build da imagem e guarda `test -d dbt_packages/dbt_utils || exit 1`. O COPY do `dbt_project` passa a ser read-only do host (`.dockerignore` exclui `dbt_packages/`, `target/`, `logs/`) para que os pacotes sejam sempre instalados de novo na imagem.
 
 **Definition of Done:** o pipeline inteiro corre sozinho a partir do Airflow UI, com retries automáticos e alerta se falhar.
 

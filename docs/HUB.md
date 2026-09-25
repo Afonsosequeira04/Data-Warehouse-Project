@@ -2,7 +2,7 @@
 
 One page to see the whole project: where it stands, how data flows, which tool shows what, and how to start it. GitHub renders the diagrams below natively.
 
-**Status:** Fase 5 closed · Fase 6 is next · updated September 2026
+**Status:** Fase 5 closed (chore/airflow-hardening merged) · Fase 6 is next · updated September 2026
 
 Quick links: [Roadmap](../PLANO_MODERNIZACAO.md) · [Agent rules](../AGENTS.md) · [Data catalog](data_catalog.md) · [README](../README.md) · [Pull requests](https://github.com/Afonsosequeira04/Data-Warehouse-Project/pulls) · [Notion](https://app.notion.com/p/Data-Warehouse-Project-3c745b08c0b680ffa7fed0b348f511d0?source=copy_link)
 
@@ -192,6 +192,7 @@ make airflow-up    # start Airflow stack (Postgres + Metadata DB + Webserver + S
 | `airflow/` | DAGs (`dwh_pipeline.py`) and notifications (`notifications.py`) |
 | `legacy_sql/` | Original Silver and Gold SQL, kept for reconciliation |
 | `docs/` | This hub, the [data catalog](data_catalog.md), baseline, validation and quarantine reports |
+| `.dockerignore` | Excludes `dbt_packages/`, `target/`, `logs/`, `.venv/`, `.env*`, `.git/`, etc. from Docker build context |
 
 ---
 
