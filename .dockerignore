@@ -1,0 +1,45 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# dbt artifacts
+dbt_project/target/
+dbt_project/dbt_packages/
+dbt_project/logs/
+
+# Datasets (mounted separately)
+datasets/
+
+# Airflow
+airflow/logs/
+airflow/__pycache__/
+
+# IDE/editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Git
+.git/
+
+# Environment files
+.env
+*.env
+.env.*
+
+# Terraform
+*.tfstate
+*.tfstate.*
+*.tfvars

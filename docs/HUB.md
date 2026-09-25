@@ -2,7 +2,7 @@
 
 One page to see the whole project: where it stands, how data flows, which tool shows what, and how to start it. GitHub renders the diagrams below natively.
 
-**Status:** Fase 5 closed · Fase 6 is next · updated September 2026
+**Status:** Fase 5 closed (chore/airflow-hardening merged) · Fase 6 is next · updated September 2026
 
 Quick links: [Roadmap](../PLANO_MODERNIZACAO.md) · [Agent rules](../AGENTS.md) · [Data catalog](data_catalog.md) · [README](../README.md) · [Pull requests](https://github.com/Afonsosequeira04/Data-Warehouse-Project/pulls) · [Notion](https://app.notion.com/p/Data-Warehouse-Project-3c745b08c0b680ffa7fed0b348f511d0?source=copy_link)
 
@@ -18,7 +18,7 @@ flowchart TB
   end
   subgraph NEXT["Next and planned"]
     direction LR
-    F6["6 · History and<br/>incremental"]:::next --> F7["7 · CI/CD"]:::planned --> F8["8 · Observability<br/>and live lineage"]:::planned --> F9["9 · BI"]:::planned
+    F6["6 · History and<br/>incremental"]:::next --> F7["7 · CI/CD"]:::planned --> F8["8 · Observability<br/>and live lineage"]:::planned --> F9["9 · BI"]:::planned --> F10["10 · Cloud deploy<br/>AWS"]:::planned
   end
   DONE --> NEXT
   classDef done fill:#d1fae5,stroke:#059669,color:#064e3b
@@ -38,6 +38,7 @@ flowchart TB
 | 7 · CI/CD | No PR with a failing dbt test can be merged unnoticed | ⏳ Planned |
 | 8 · Observability and live lineage | Answer "did the pipeline run well yesterday?" from a dashboard, and watch lineage live in Marquez | ⏳ Planned |
 | 9 · Consumption / BI | Dashboards on the marts | ⏳ Planned |
+| 10 · Cloud deploy (AWS + Redshift) | A merge to main deploys the pipeline to AWS, with every environment created by code | ⏳ Planned |
 
 ---
 
@@ -192,6 +193,7 @@ make airflow-up    # start Airflow stack (Postgres + Metadata DB + Webserver + S
 | `airflow/` | DAGs (`dwh_pipeline.py`) and notifications (`notifications.py`) |
 | `legacy_sql/` | Original Silver and Gold SQL, kept for reconciliation |
 | `docs/` | This hub, the [data catalog](data_catalog.md), baseline, validation and quarantine reports |
+| `.dockerignore` | Excludes `dbt_packages/`, `target/`, `logs/`, `.venv/`, `.env*`, `.git/`, etc. from Docker build context |
 
 ---
 

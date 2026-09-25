@@ -140,6 +140,7 @@ Observado por logs, alertas e dashboards de qualidade de dados.
 - [x] DAG único: `extract_load_bronze` → `dbt run` (staging) → `dbt test` (staging) → `dbt run` (marts) → `dbt test` (marts) → notificação.
 - [x] Alerta (Slack ou e-mail) `on_failure_callback` em qualquer task que falhe.
 - [x] Agendamento diário (ou trigger por chegada de ficheiro, se quiseres simular uma fonte real).
+- [x] **Chore: Airflow dbt_packages fix** — o `chown -R airflow:root /opt/airflow/dbt_project` em `infra/airflow.Dockerfile` deve incluir o diretório `dbt_project` completo (não só `target/`), caso contrário o `dbt deps` falha com `Permission denied: 'dbt_packages'`. O fix adiciona `dbt deps` no build da imagem e guarda `test -d dbt_packages/dbt_utils || exit 1`. O COPY do `dbt_project` passa a ser read-only do host (`.dockerignore` exclui `dbt_packages/`, `target/`, `logs/`) para que os pacotes sejam sempre instalados de novo na imagem.
 
 **Definition of Done:** o pipeline inteiro corre sozinho a partir do Airflow UI, com retries automáticos e alerta se falhar.
 
@@ -189,6 +190,53 @@ Observado por logs, alertas e dashboards de qualidade de dados.
 - [ ] Ligar Metabase (ou Power BI) ao schema `gold`/marts.
 - [ ] `docs/semantic_layer.md` — documentar métricas e dimensões do modelo de forma que qualquer analista entenda sem ler SQL.
 - [ ] (Avançado, opcional) explorar o dbt Semantic Layer / MetricFlow para métricas governadas centralmente.
+
+---
+
+## Anexo B — Fase 10: Deploy na cloud (AWS + Redshift), automatizado
+
+**Objetivo:** um merge na `main` faz deploy do pipeline na AWS, e todos os ambientes são criados e destruídos por código, como numa equipa de dados.
+
+**Pré-requisitos:** Fase 5 (Airflow) e Fase 7 (CI/CD). Recomendado: Fase 6. Confirmar preços e opções atuais dos serviços AWS antes de escolher tamanhos.
+
+### 10a — Fundação (infraestrutura como código)
+- [ ] Bootstrap manual único e documentado: conta AWS com MFA, utilizador administrador (IAM Identity Center ou equivalente), primeiro bucket para o estado do Terraform.
+- [ ] Terraform em `infra/terraform/` (módulos + `envs/dev` e `envs/prod`) com estado remoto e bloqueio de estado (confirmar a opção atual do backend S3).
+- [ ] GitHub Actions faz login na AWS por OIDC com um role IAM de menor privilégio; nenhuma chave de acesso guardada no GitHub.
+- [ ] Orçamento com alerta de custos (AWS Budgets), tags em todos os recursos e workflow de `destroy` do `dev` testado.
+- [ ] Workflow `infra.yml`: `terraform plan` em cada PR, `apply` ao fazer merge na `main` (prod só após aprovação manual).
+
+### 10b — Plataforma de dados (serviços geridos)
+- [ ] S3: bucket privado e versionado para os CSVs; a pasta `datasets/` local passa a ser só cópia de desenvolvimento.
+- [ ] Redshift Serverless no tamanho mínimo, com um role para o pipeline e um role só de leitura para BI (prepara as Fases 8 e 9).
+- [ ] Secrets Manager (ou SSM Parameter Store) para credenciais; nenhum segredo no repo.
+- [ ] ECR para a imagem do Airflow, construída e publicada pelo CI.
+- [ ] Rede: VPC com sub-redes privadas para Redshift e Airflow, sem acesso público à base de dados.
+
+### 10c — dbt no Redshift
+- [ ] `dbt-redshift` fixado em `requirements.txt` (versão exata, compatível com o dbt-core do projeto) e targets `dev`/`prod` em `profiles.yml` com `env_var()`.
+- [ ] Modelos de staging, marts e quarantine portados para o dialeto do Redshift; decisões de dialeto documentadas em `docs/`.
+- [ ] O Redshift não impõe constraints de chave primária ou única, por isso os testes dbt continuam a ser a garantia de unicidade; nenhum teste é removido.
+- [ ] Reconciliação Postgres vs Redshift (contagens + `EXCEPT` nos dois sentidos, ignorando `dwh_create_date`) em `docs/validacao_fase10.md`.
+
+### 10d — Ingestão
+- [ ] A task `extract_load_bronze` carrega do S3 para o Redshift com `COPY`, atrás de `STORAGE_BACKEND=local|s3`; o pipeline local em Postgres continua a funcionar.
+- [ ] `validate_headers` corre antes da carga, também para os ficheiros no S3.
+- [ ] Erros de carga fazem a task falhar (como no chore de hardening).
+
+### 10e — Orquestração e deploy
+- [ ] Decisão documentada: Airflow gerido (MWAA) vs Airflow em contentores (ECS ou EC2), com custos e razões.
+- [ ] Workflow `deploy.yml`: em merge na `main`, build e push da imagem, atualização dos DAGs e `dbt build` no `dev`; promoção a `prod` com aprovação manual.
+- [ ] Ambientes `dev` e `prod` separados, com roles e recursos distintos.
+
+### 10f — Alertas e documentação
+- [ ] Alerta real de falha de DAG (SNS/e-mail ou Slack).
+- [ ] `docs/HUB.md` com URLs, diagrama de arquitetura AWS e "como destruir tudo"; README com "como fazer deploy".
+- [ ] Comando de teardown testado e checklist de custos.
+
+**Fora de âmbito:** Marquez e Metabase (Fases 8 e 9) continuam locais. Uma região, tamanhos mínimos, destruir o `dev` quando não estiver a ser usado.
+
+**Definition of Done:** um PR fundido na `main` faz deploy automático para `dev`; o DAG corre verde na AWS e os marts existem no Redshift; a reconciliação com o Postgres passa; os testes dbt continuam a travar o pipeline; o `destroy` do `dev` foi testado; não há segredos no repo.
 
 ---
 
