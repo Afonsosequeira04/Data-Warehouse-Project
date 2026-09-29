@@ -6,7 +6,7 @@ End-to-end, 100% cloud data platform built on **real data**: ingestion from publ
 
 ## Architecture
 
-![Architecture](docs/architecture.png)
+![Architecture](docs/architecture1.png)
 
 Full details: [Technical Datasheet (PDF)](docs/technical_datasheet.pdf)
 
