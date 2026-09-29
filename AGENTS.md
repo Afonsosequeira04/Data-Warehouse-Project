@@ -243,6 +243,46 @@ One phase = one branch = one PR. Never commit directly to `main`.
 - Last commit on the branch: update "Current phase" (only if the Definition of Done is met).
 - Afonso reviews and merges manually. If he requests changes, fix them on the same branch and update the PR text.
 
+## Mandatory Phase-Completion Report
+
+At the end of every completed phase/task, the agent MUST output exactly this structure:
+
+## PHASE COMPLETION SUMMARY
+
+Phase:
+Status:
+
+### What changed
+
+### Files changed
+
+### Verification
+
+### Cloud resources / cost
+
+### Manual steps remaining
+
+### Open decisions
+
+### Evidence
+
+### PR
+
+After this summary:
+
+STOP.
+
+The agent must NOT:
+
+* start the next phase
+* merge the PR
+* continue making unrelated improvements
+* silently expand the scope
+
+The report must include the exact commands executed and their results under `### Verification`.
+
+The report must explicitly state whether any cloud resources were created or modified and the resulting cost impact.
+
 ## Permissions and safety
 
 Allowed without asking: reading files, git on the working branch, formatters, linters, unit tests, `dbt parse`,
@@ -535,3 +575,13 @@ At the end of a phase, continue with "Phase workflow": cleanup checklist, PR, st
 - One logical change per commit. Do not mix unrelated changes.
 - Do not commit generated artifacts, large files, virtualenvs, `target/`, `.terraform/`, or state.
 - Do not rewrite shared history.
+
+## Git safety
+
+- Never merge PRs; merging is done by Afonso on GitHub.
+- Never push directly to main, never force push, never git reset --hard.
+- Never discard uncommitted changes without asking.
+- Never touch branches other than the current phase branch.
+- Phase workflow is triggered by the /phase command and cleanup by
+  /cleanup (see .opencode/command/).
+
