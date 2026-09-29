@@ -576,3 +576,12 @@ At the end of a phase, continue with "Phase workflow": cleanup checklist, PR, st
 - Do not commit generated artifacts, large files, virtualenvs, `target/`, `.terraform/`, or state.
 - Do not rewrite shared history.
 
+## Git safety
+
+- Never merge PRs; merging is done by Afonso on GitHub.
+- Never push directly to main, never force push, never git reset --hard.
+- Never discard uncommitted changes without asking.
+- Never touch branches other than the current phase branch.
+- Phase workflow is triggered by the /phase command and cleanup by
+  /cleanup (see .opencode/command/).
+
