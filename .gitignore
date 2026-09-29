@@ -1,0 +1,76 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+.pytest_cache/**
+.coverage
+htmlcov/
+.tox/
+.venv/
+venv/
+env/
+ENV/
+*.egg-info/
+dist/
+build/
+pip-wheel-metadata/
+.mypy_cache/
+.ruff_cache/
+
+# Environment / Secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*_rsa
+*_dsa
+secrets/
+credentials/
+
+# Terraform
+.terraform/
+.terraform.lock.hcl
+*.tfstate
+*.tfstate.*
+*.tfplan
+*.tfplan.*
+*.tfvars
+*.tfvars.*
+!*.tfvars.example
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# dbt
+dbt_project/target/
+dbt_project/dbt_packages/
+dbt_project/logs/
+dbt_project/profiles.yml
+!dbt_project/profiles.yml.example
+
+# OS / Editor
+.DS_Store
+__MACOSX/
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+*.log
+
+# IDE / Editor specific
+.vscode/settings.json
+.idea/workspace.xml
+
+# Temporary files
+*.tmp
+*.temp
+.tmp/
+temp/
+
+# Terraform provider cache
+.terraform/providers/
