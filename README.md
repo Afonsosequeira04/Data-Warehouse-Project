@@ -7,12 +7,6 @@ Plataforma de dados ponta a ponta, 100% cloud, construída com **dados reais**: 
 ## Arquitetura
 
 ```
-APIs públicas ──► Airflow (MWAA) ──► S3 Raw ──► Databricks Bronze ─┐
-                                                                   ├─► dbt Silver ─► dbt Gold ─► AI/BI
-SaaS / DB ──────► Fivetran ─────────────────► Databricks Raw ──────┘
-                                                        │
-                                                  Unity Catalog (governance, lineage)
-```
 
 Diagrama completo: [`docs/architecture.png`](docs/architecture.png) · Ficha técnica: [`docs/ficha_tecnica.md`](docs/ficha_tecnica.md)
 
