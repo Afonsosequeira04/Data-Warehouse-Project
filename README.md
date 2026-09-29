@@ -10,7 +10,7 @@ End-to-end, 100% cloud data platform built on **real data**: ingestion from publ
 
 Full details: [Technical Datasheet (PDF)](docs/technical_datasheet.pdf)
 
-Notion Plan - https://app.notion.com/p/NOTION_PROJECT_PLAN-c9145b08c0b6822498a381c65935301a?source=copy_link
+Notion Plan - https://app.notion.com/p/NOTION_PROJECT_PLAN-a0545b08c0b682c9adac81d55a468fd1?source=copy_link
 
 ## Stack
 
