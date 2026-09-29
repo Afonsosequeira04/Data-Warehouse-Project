@@ -1,67 +1,67 @@
-# Data Platform Cloud
+# Cloud Data Platform
 
-Plataforma de dados ponta a ponta, 100% cloud, construída com **dados reais**: ingestão de APIs públicas e de uma fonte SaaS/DB, arquitetura medallion no Databricks, transformação com dbt, governance com Unity Catalog e infraestrutura como código.
+End-to-end, 100% cloud data platform built on **real data**: ingestion from public APIs and a SaaS/DB source, a medallion architecture on Databricks, dbt transformations, Unity Catalog governance and infrastructure as code.
 
-> As fontes são reais; o pipeline que as ingere, transforma e governa também é real.
+> The sources are real; the pipeline that ingests, transforms and governs them is real too.
 
-## Arquitetura
+## Architecture
 
-```
+![Architecture](docs/architecture.png)
 
-Diagrama completo: [`docs/architecture.png`](docs/architecture.png) · Ficha técnica: [`docs/ficha_tecnica.md`](docs/ficha_tecnica.md)
+Full details: [Technical Datasheet (PDF)](docs/technical_datasheet.pdf)
 
 ## Stack
 
-| Camada | Tecnologia |
+| Layer | Technology |
 |---|---|
 | Cloud / Storage | AWS, S3 |
-| Orquestração | Amazon MWAA (Apache Airflow) |
-| Ingestão | Python (APIs), Fivetran (SaaS/DB) |
+| Orchestration | Amazon MWAA (Apache Airflow) |
+| Ingestion | Python (APIs), Fivetran (SaaS/DB) |
 | Lakehouse | Databricks, Delta Lake |
 | Governance | Unity Catalog |
-| Transformação | dbt-core, dbt-databricks |
+| Transformation | dbt-core, dbt-databricks |
 | BI | Databricks AI/BI |
 | IaC | Terraform |
 | CI/CD | GitHub Actions (OIDC) |
 | Secrets | AWS Secrets Manager |
 
-## Fontes de dados
+## Data Sources
 
-| Fonte | Tipo | Caminho |
+| Source | Type | Path |
 |---|---|---|
-| `<API 1>` | API pública REST | Airflow → S3 → Bronze |
-| `<API 2>` | API pública REST | Airflow → S3 → Bronze |
-| `<SaaS/DB>` | Conector Fivetran | Fivetran → Databricks |
+| `<API 1>` | Public REST API | Airflow > S3 > Bronze |
+| `<API 2>` | Public REST API | Airflow > S3 > Bronze |
+| `<SaaS/DB>` | Fivetran connector | Fivetran > Databricks |
 
-## Camadas de dados
+## Data Layers
 
-- **Bronze:** dados próximos da origem, com metadata técnica (`_batch_id`, `_ingested_at`, `_source_file`, `_source_system`, `_batch_date`).
-- **Silver:** tipos, deduplicação, normalização e regras de negócio (dbt staging).
-- **Gold:** dimensões e factos analíticos (dbt marts).
-- **Quarantine:** registos rejeitados pelas validações.
+- **Bronze:** data close to the source, with technical metadata (`_batch_id`, `_ingested_at`, `_source_file`, `_source_system`, `_batch_date`).
+- **Silver:** types, deduplication, normalization and business rules (dbt staging).
+- **Gold:** analytical dimensions and facts (dbt marts).
+- **Quarantine:** records rejected by validations.
 
-## Estrutura do repositório
+## Repository Structure
 
 ```
-├── ingestion/        # código de extração (APIs) e config Fivetran
-├── orchestration/    # DAGs Airflow
+├── ingestion/        # extraction code (APIs) and Fivetran config
+├── orchestration/    # Airflow DAGs
 ├── dbt_project/      # models, snapshots, tests, macros
-├── infra/terraform/  # AWS e Databricks
-├── docs/             # ficha técnica e diagramas
+├── infra/terraform/  # AWS and Databricks
+├── docs/             # datasheet and diagrams
 ├── tests/
 └── .github/workflows/
 ```
 
-## Como começar
+## Getting Started
 
-**Pré-requisitos:** conta AWS, workspace Databricks (AWS), Terraform, Python 3.11+, dbt-core com dbt-databricks.
+**Prerequisites:** AWS account, Databricks workspace (AWS), Terraform, Python 3.11+, dbt-core with dbt-databricks.
 
 ```bash
-# 1. Infraestrutura
+# 1. Infrastructure
 cd infra/terraform/aws && terraform init && terraform plan
 cd ../databricks && terraform init && terraform plan
 
-# 2. Dependências Python
+# 2. Python dependencies
 pip install -r requirements.txt
 
 # 3. dbt
@@ -70,30 +70,30 @@ dbt deps
 dbt build
 ```
 
-Credenciais e API keys ficam no AWS Secrets Manager; nunca no repositório.
+Credentials and API keys live in AWS Secrets Manager, never in the repository.
 
 ## CI/CD
 
-| Evento | Ações |
+| Event | Actions |
 |---|---|
-| Pull Request | testes, `dbt parse`, lint, gitleaks, `terraform plan` |
-| Merge em `main` | `terraform apply`, deploy Databricks, `dbt build` |
+| Pull Request | tests, `dbt parse`, lint, gitleaks, `terraform plan` |
+| Merge to `main` | `terraform apply`, Databricks deployment, `dbt build` |
 
 ## Roadmap
 
-- [ ] S3, IAM e Unity Catalog (storage credential + external location)
-- [ ] Ingestão API 1 → S3 → Bronze
-- [ ] Modelos dbt (staging, marts, testes)
-- [ ] MWAA e DAG `daily_pipeline`
-- [ ] Ingestão API 2
-- [ ] Fivetran (fonte SaaS/DB)
-- [ ] Terraform completo e GitHub Actions
-- [ ] Dashboards AI/BI (negócio e qualidade)
+- [ ] S3, IAM and Unity Catalog (storage credential + external location)
+- [ ] API 1 ingestion > S3 > Bronze
+- [ ] dbt models (staging, marts, tests)
+- [ ] MWAA and the `daily_pipeline` DAG
+- [ ] API 2 ingestion
+- [ ] Fivetran (SaaS/DB source)
+- [ ] Full Terraform and GitHub Actions
+- [ ] AI/BI dashboards (business and data quality)
 
-## Custos
+## Costs
 
-O MWAA e o SQL Warehouse são os componentes mais caros. Há um AWS Budget configurado; desligar os recursos quando não estiverem em uso.
+MWAA and the SQL Warehouse are the most expensive components. An AWS Budget is configured; shut resources down when not in use.
 
-## Licença
+## License
 
 MIT
