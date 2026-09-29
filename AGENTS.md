@@ -3,6 +3,7 @@
 ## Mission
 
 This repository implements an end-to-end cloud data platform using real external data.
+
 The target architecture is AWS + Databricks with Python/Airflow API ingestion, S3 immutable raw storage,
 Databricks Delta Lake + Unity Catalog, dbt transformations, optional Fivetran ingestion, Terraform IaC,
 GitHub Actions CI/CD with OIDC, and Databricks AI/BI dashboards.
@@ -12,7 +13,7 @@ over adding services just to make the architecture look larger.
 
 ## Current phase
 
-```text
+```
 Current phase : P0 - Decisions and project bootstrap
 Status        : in progress
 Last completed: none
@@ -22,9 +23,23 @@ Next phase    : P1 - Persistent foundation (Terraform + S3 + IAM + Unity Catalog
 Rules for this block:
 
 - Work only on the current phase. If a task belongs to a later phase, say so and stop instead of doing it early.
-- This block is updated as the **last commit of the phase's PR**, so merging the PR advances the project.
+- This block is updated as the last commit of the phase's PR, so merging the PR advances the project.
 - Never advance the phase yourself if the phase's Definition of Done (in `docs/NOTION_PROJECT_PLAN.md`) is not met.
   If it is only partly met, keep the phase and list what is missing in the PR.
+
+## How Afonso starts work
+
+- "começa a fase atual" / "continua": work on the phase in "Current phase".
+- "começa a fase N": valid only if N is the current phase. If N is a later phase, say so and stop.
+  If N is an earlier phase, ask before doing anything. Never edit the "Current phase" block to make N valid.
+- Read only the section of `docs/NOTION_PROJECT_PLAN.md` for that phase, plus the ADRs it references.
+  Do not read or work on other phases.
+- Before editing, print: the current repo state, the files you expect to touch, and any open ADRs or decisions
+  that block you. Wait for Afonso's OK.
+- P0 special case: OpenCode only does "Repository bootstrap (OpenCode, first PR)" and may draft Proposed ADRs and
+  source shortlists on request. "Decisions" and "Manual prerequisites" belong to Afonso. Do not do them and do not
+  mark them as done. The P0 bootstrap PR does not advance "Current phase"; Afonso advances it once the P0
+  Definition of Done is met.
 
 ## Working language
 
@@ -53,6 +68,7 @@ Do not silently change the architecture. Record meaningful changes as decisions 
 
 The repository may begin as a design/scaffold rather than a fully implemented platform. Do not claim that a
 component exists merely because it appears in the datasheet or architecture diagram.
+
 Before modifying an area, inspect the actual files and verify its current state.
 
 At the time of writing the repository contains documentation only: no code, no Terraform, no dbt project,
@@ -68,13 +84,13 @@ Only then update the README rows.
 These are settled. Do not reverse them casually; if one must change, follow the change process in "Documentation rules".
 
 | ID | Decision |
-|---|---|
+| --- | --- |
 | D-001 | Fivetran is optional, not mandatory. The core platform must work without it. |
 | D-002 | APIs use S3 as immutable raw storage; Fivetran writes directly to Databricks. |
 | D-003 | KMS is not required at project start; SSE-S3 is sufficient for the portfolio scope. |
 | D-004 | AWS Budgets exist from the beginning, before any expensive resource. |
-| D-005 | MWAA is used directly. There is **no local Airflow / Docker Compose orchestration** in this project. MWAA is treated as an **ephemeral environment**: created for a work window with Terraform and destroyed afterwards. |
-| D-006 | Terraform starts in P1, not at the end. AWS infrastructure is split into a **persistent** stack (survives destroys) and an **ephemeral** stack (MWAA and its networking). |
+| D-005 | MWAA is used directly. There is no local Airflow / Docker Compose orchestration in this project. MWAA is treated as an ephemeral environment: created for a work window with Terraform and destroyed afterwards. |
+| D-006 | Terraform starts in P1, not at the end. AWS infrastructure is split into a persistent stack (survives destroys) and an ephemeral stack (MWAA and its networking). |
 
 D-005 and D-006 refine the datasheet: the datasheet's "shut resources down when not in use" is implemented
 by destroying the ephemeral stack, because MWAA cannot be paused. The datasheet's flat `infra/terraform/aws/`
@@ -86,14 +102,14 @@ These are unresolved. Do not implement code that depends on an open ADR. Present
 then wait for Afonso to accept one.
 
 | ADR | Question | Status |
-|---|---|---|
+| --- | --- | --- |
 | ADR-001 | How is Bronze loaded from raw JSON in S3 (who runs it, which mechanism), given a SQL Warehouse and no cluster? | Proposed |
 | ADR-002 | Where is the quarantine boundary: file/schema level at ingestion, row level in dbt, or both? | Proposed |
 | ADR-003 | Where does dbt run in the daily DAG (inside MWAA, external runner, Databricks job)? | Proposed |
 | ADR-004 | MWAA operating model: creation/destruction workflow, what state must survive a destroy, networking cost options, how DAGs are validated before spending environment time. | Proposed |
 
 Also open, tracked in `docs/data-sources.md` and `docs/business-questions.md`: the concrete API 1, API 2 and
-SaaS/DB sources, and the business questions the Gold layer must answer. Choose sources **after** the
+SaaS/DB sources, and the business questions the Gold layer must answer. Choose sources after the
 business questions, not before.
 
 If you find a new decision that is not covered here, propose a new ADR instead of choosing silently.
@@ -102,7 +118,7 @@ If you find a new decision that is not covered here, propose a new ADR instead o
 
 ### End-to-end flow
 
-```text
+```
 Public API 1 ─┐
               ├─> MWAA / Airflow ─> S3 immutable raw ─> Databricks Bronze
 Public API 2 ─┘                                      └─> Quarantine for rejected records (boundary: ADR-002)
@@ -114,49 +130,50 @@ SaaS / Database ─> Fivetran ─> Databricks Raw Fivetran
 GitHub ─> GitHub Actions (OIDC) ─> Terraform / deployment / dbt checks
 ```
 
-The mechanism that turns raw JSON in S3 into a Bronze Delta table is **not decided yet** (ADR-001).
+The mechanism that turns raw JSON in S3 into a Bronze Delta table is not decided yet (ADR-001).
 Do not assume `COPY INTO`, `read_files`, streaming tables, or dbt does it.
 
 ### Core layers
 
-- **S3 Raw/Landing:** immutable source payloads. API ingestions create new objects per ingestion date; do not overwrite raw data.
-- **Bronze:** data kept close to source plus technical metadata: `_batch_id`, `_ingested_at`, `_source_file`, `_source_system`, `_batch_date`.
-- **Silver:** parsing, types, deduplication, normalization, and business rules. Implement this primarily with dbt staging models.
-- **Gold:** analytical dimensions and facts in dbt marts.
-- **Quarantine:** records rejected by validation rules; retain enough metadata to diagnose the rejection.
-- **Snapshots:** dbt snapshot history using SCD2 where historical tracking is required.
+- **S3 Raw/Landing**: immutable source payloads. API ingestions create new objects per ingestion date; do not overwrite raw data.
+- **Bronze**: data kept close to source plus technical metadata: `_batch_id`, `_ingested_at`, `_source_file`, `_source_system`, `_batch_date`.
+- **Silver**: parsing, types, deduplication, normalization, and business rules. Implement this primarily with dbt staging models.
+- **Gold**: analytical dimensions and facts in dbt marts.
+- **Quarantine**: records rejected by validation rules; retain enough metadata to diagnose the rejection.
+- **Snapshots**: dbt snapshot history using SCD2 where historical tracking is required.
 
 ### Ingestion responsibilities
 
 - Python + Airflow owns API extraction, pagination, rate limiting, retries, schema validation, and writing raw JSON to S3.
-- dbt does **not** own the main API ingestion. dbt starts at Bronze/Raw and transforms toward Silver/Gold.
+- dbt does not own the main API ingestion. dbt starts at Bronze/Raw and transforms toward Silver/Gold.
 - Fivetran is an additional ingestion path, not a prerequisite for the core platform.
-- Airflow may coordinate Fivetran through its API, including triggering and waiting for synchronization, but Fivetran remains responsible for the connector sync itself.
+- Airflow may coordinate Fivetran through its API, including triggering and waiting for synchronization,
+  but Fivetran remains responsible for the connector sync itself.
 
-## Non-negotiable architecture rules
+### Non-negotiable architecture rules
 
-1. Use real external sources for the production pipeline. Test fixtures may be synthetic and must live under `tests/fixtures/`.
-2. Do not replace S3 raw storage with local files for the production flow.
-3. Do not overwrite immutable raw S3 objects. Use an ingestion-date-based path.
-4. Do not introduce AWS services that are outside the documented scope unless a concrete requirement justifies them.
-5. Prefer S3, IAM, MWAA, VPC/networking, CloudWatch Logs, Secrets Manager, and AWS Budgets as the essential AWS footprint.
-6. KMS, SNS, EventBridge, and CloudTrail are optional only when there is a demonstrated need.
-7. Redshift, Glue, EMR, Athena, Kinesis, Lambda, DynamoDB, ECR, ECS, and RDS are out of scope unless the architecture is explicitly revised.
-   (Consequence: Terraform state locking must not use DynamoDB. See "Terraform conventions".)
-8. Secrets and credentials must never be committed to Git. Use AWS Secrets Manager or the appropriate runtime secret mechanism.
-9. GitHub authentication to AWS should use OIDC. Do not add long-lived AWS access keys to GitHub Actions.
-10. Keep Fivetran optional so the platform remains functional without it if cost or plan constraints make it unavailable.
-11. Preserve lineage and governance through Unity Catalog; do not introduce a separate lineage system without a specific requirement.
-12. Keep transformations in dbt models/macros/tests rather than duplicating business logic across Python, DAGs, and SQL.
-13. Do not add a local orchestration setup (local Airflow, Docker Compose Airflow, etc.). See D-005.
-14. Destroying the ephemeral stack must never be able to delete raw data, Unity Catalog storage, secrets or the budget.
-    Those resources live only in the persistent stack.
+- Use real external sources for the production pipeline. Test fixtures may be synthetic and must live under `tests/fixtures/`.
+- Do not replace S3 raw storage with local files for the production flow.
+- Do not overwrite immutable raw S3 objects. Use an ingestion-date-based path.
+- Do not introduce AWS services that are outside the documented scope unless a concrete requirement justifies them.
+- Prefer S3, IAM, MWAA, VPC/networking, CloudWatch Logs, Secrets Manager, and AWS Budgets as the essential AWS footprint.
+- KMS, SNS, EventBridge, and CloudTrail are optional only when there is a demonstrated need.
+- Redshift, Glue, EMR, Athena, Kinesis, Lambda, DynamoDB, ECR, ECS, and RDS are out of scope unless the architecture is explicitly revised.
+  (Consequence: Terraform state locking must not use DynamoDB. See "Terraform conventions".)
+- Secrets and credentials must never be committed to Git. Use AWS Secrets Manager or the appropriate runtime secret mechanism.
+- GitHub authentication to AWS should use OIDC. Do not add long-lived AWS access keys to GitHub Actions.
+- Keep Fivetran optional so the platform remains functional without it if cost or plan constraints make it unavailable.
+- Preserve lineage and governance through Unity Catalog; do not introduce a separate lineage system without a specific requirement.
+- Keep transformations in dbt models/macros/tests rather than duplicating business logic across Python, DAGs, and SQL.
+- Do not add a local orchestration setup (local Airflow, Docker Compose Airflow, etc.). See D-005.
+- Destroying the ephemeral stack must never be able to delete raw data, Unity Catalog storage, secrets or the budget.
+  Those resources live only in the persistent stack.
 
 ## Repository structure
 
 Use this structure unless there is a strong reason to change it:
 
-```text
+```
 cloud-data-platform/
 ├── ingestion/
 │   ├── api/
@@ -209,7 +226,7 @@ One phase = one branch = one PR. Never commit directly to `main`.
 - Remove scratch files, debug prints, commented-out code, unused imports and unused dependencies.
 - Confirm no secrets or state are tracked: `git status`, and
   `git ls-files | grep -E "\.env|tfstate|tfvars|profiles\.yml"` must return nothing. Run gitleaks if configured.
-- Run the checks that match the files changed (fmt / lint / validate / tests / `dbt parse`).
+- Run the checks that match the files changed (fmt / lint / validate / tests / dbt parse).
   Report each command with its result. Never say "should pass".
 - Tick the phase's Definition of Done in the plan; update README, ADR statuses and `docs/data-sources.md` if they changed.
 - List every cloud resource that exists or is running because of this phase, with estimated cost, and say whether
@@ -218,17 +235,17 @@ One phase = one branch = one PR. Never commit directly to `main`.
 
 ### Open the PR, then stop
 
-- Push the branch. **Do not merge. Do not start the next phase.**
+- Push the branch. Do not merge. Do not start the next phase.
 - Produce a PR title and body containing: summary, files touched, verification results, cloud resources and cost
   impact, manual steps left, open decisions, evidence to capture.
-  Use `gh pr create` if `gh` is installed and authenticated; otherwise print the title and body so Afonso can paste
+- Use `gh pr create` if `gh` is installed and authenticated; otherwise print the title and body so Afonso can paste
   them in the GitHub web UI.
 - Last commit on the branch: update "Current phase" (only if the Definition of Done is met).
 - Afonso reviews and merges manually. If he requests changes, fix them on the same branch and update the PR text.
 
 ## Permissions and safety
 
-Allowed without asking: reading files, `git` on the working branch, formatters, linters, unit tests, `dbt parse`,
+Allowed without asking: reading files, git on the working branch, formatters, linters, unit tests, `dbt parse`,
 `terraform fmt / init / validate / plan`, read-only cloud CLI calls.
 
 Never do without explicit, per-action approval from Afonso in the current conversation:
@@ -258,29 +275,27 @@ For each API:
 
 Recommended raw path pattern:
 
-```text
+```
 s3://<bucket>/api/<source_name>/ingest_date=YYYY-MM-DD/<object>.json
 ```
 
 ## Airflow / MWAA conventions
 
-DAG files should describe orchestration, not contain large blocks of business logic.
-Prefer small tasks with clear inputs/outputs and explicit dependencies.
-
-MWAA is ephemeral (D-005), so:
-
-- DAGs and `requirements.txt` live in a persistent S3 location managed by the persistent stack; a rebuilt
-  environment must pick them up with no manual steps.
-- Connections and variables come from AWS Secrets Manager (Airflow secrets backend) or Terraform-managed
-  configuration, never from values typed into the Airflow UI. Anything created only in the UI is lost on destroy.
-- Do not rely on the Airflow metadata database (run history, UI variables) for anything that must persist.
-  Persistent facts (batch ids, ingestion status) live in S3 / Databricks.
+- DAG files should describe orchestration, not contain large blocks of business logic.
+- Prefer small tasks with clear inputs/outputs and explicit dependencies.
+- MWAA is ephemeral (D-005), so:
+  - DAGs and `requirements.txt` live in a persistent S3 location managed by the persistent stack; a rebuilt
+    environment must pick them up with no manual steps.
+  - Connections and variables come from AWS Secrets Manager (Airflow secrets backend) or Terraform-managed
+    configuration, never from values typed into the Airflow UI. Anything created only in the UI is lost on destroy.
+  - Do not rely on the Airflow metadata database (run history, UI variables) for anything that must persist.
+    Persistent facts (batch ids, ingestion status) live in S3 / Databricks.
 - Pin the Airflow version and provider/constraint versions; check MWAA's supported versions before choosing.
 - Add a DAG import/parse test that runs without MWAA, so mistakes are caught before spending environment time.
 
 The intended main DAG flow is:
 
-```text
+```
 API ingestion
   > check S3
   > trigger / wait for Fivetran sync (when enabled)
@@ -306,43 +321,38 @@ rather than blocking a worker unnecessarily.
 - Avoid duplicating the same metric definition in several models.
 - Keep model names, column names, and tests predictable and consistent.
 - Document important business assumptions in dbt documentation or project docs.
-- Connection settings (host, HTTP path, token/OAuth) come from environment variables. `profiles.yml` with real values is never committed;
-  commit only a profile that reads from `env_var()`.
+- Connection settings (host, HTTP path, token/OAuth) come from environment variables. `profiles.yml` with real values
+  is never committed; commit only a profile that reads from `env_var()`.
 - Where dbt runs in the daily DAG is open (ADR-003). Do not wire dbt into MWAA before that ADR is accepted.
 
 ## Unity Catalog conventions
 
 Use the documented structure:
 
-```text
+```
 <catalog>.<schema>.<table>
 ```
 
-The intended schema groups are:
+The intended schema groups are: `bronze`, `silver`, `gold`, `quarantine`, `snapshots`.
 
-- `bronze`
-- `silver`
-- `gold`
-- `quarantine`
-- `snapshots`
-
-Use permissions that follow least privilege: pipeline identities need write access where necessary, BI consumers need read access, and developers receive only the access needed for development.
-S3 access should use Unity Catalog storage credentials and external locations rather than ad-hoc credentials in code.
-
-Setup gotcha: the storage credential's external ID is needed in the IAM role trust policy, while the credential
-references the role. This is a circular dependency. Resolve it in Terraform by following the Databricks provider
-documentation (for example building the role ARN from its name), and verify the exact current procedure
-instead of assuming it. Confirm the workspace type actually supports storage credentials and external locations on
-S3 before writing any Terraform for it.
+- Use permissions that follow least privilege: pipeline identities need write access where necessary,
+  BI consumers need read access, and developers receive only the access needed for development.
+- S3 access should use Unity Catalog storage credentials and external locations rather than ad-hoc credentials in code.
+- Setup gotcha: the storage credential's external ID is needed in the IAM role trust policy, while the credential
+  references the role. This is a circular dependency. Resolve it in Terraform by following the Databricks provider
+  documentation (for example building the role ARN from its name), and verify the exact current procedure
+  instead of assuming it. Confirm the workspace type actually supports storage credentials and external locations on
+  S3 before writing any Terraform for it.
 
 ## Terraform conventions
 
 - Keep AWS and Databricks resources separated under `infra/terraform/aws` and `infra/terraform/databricks`.
-- Inside `aws/`, keep the **persistent** and **ephemeral** stacks as separate root modules with separate state.
-  Cross-stack values (bucket names, role ARNs) pass through outputs, data sources or explicit variables, not copy-paste.
+- Inside `aws/`, keep the persistent and ephemeral stacks as separate root modules with separate state.
+- Cross-stack values (bucket names, role ARNs) pass through outputs, data sources or explicit variables, not copy-paste.
 - Persistent stack: raw bucket (versioned, SSE-S3, public access blocked), DAG bucket, IAM, Secrets Manager entries
   (no secret values), Budgets. Protect the raw bucket with `prevent_destroy` and no `force_destroy`.
-- Ephemeral stack: VPC/subnets/NAT, MWAA environment, security groups, MWAA log configuration. Nothing here may hold data that must survive.
+- Ephemeral stack: VPC/subnets/NAT, MWAA environment, security groups, MWAA log configuration.
+  Nothing here may hold data that must survive.
 - Prefer small, composable modules/resources over one huge Terraform file.
 - Use variables for environment-specific values and avoid hard-coded account IDs, ARNs, secrets, or personal paths.
 - Tag every resource (project, stack, phase) so Cost Explorer can attribute spend.
@@ -365,13 +375,14 @@ Expected PR checks include, when the relevant files exist:
 
 Expected deployment behavior on merge to `main`, once infrastructure is ready:
 
-- Terraform apply for the **persistent** stack and Databricks resources only
+- Terraform apply for the persistent stack and Databricks resources only
 - Databricks deployment
 - `dbt build`
 
-Merge to `main` must **never** create the ephemeral stack (MWAA). Creating and destroying it is a deliberate manual action.
+Merge to `main` must never create the ephemeral stack (MWAA). Creating and destroying it is a deliberate manual action.
 
-Use OIDC for AWS authentication. Never create a workflow that depends on a long-lived AWS secret unless the documented architecture has been explicitly changed.
+Use OIDC for AWS authentication. Never create a workflow that depends on a long-lived AWS secret unless the
+documented architecture has been explicitly changed.
 
 ## Secrets and configuration
 
@@ -384,38 +395,32 @@ Never hard-code:
 - database passwords
 - account IDs when they should be variables
 
-Use environment variables, AWS Secrets Manager, GitHub OIDC/secret mechanisms, or the native secret mechanism of the target platform.
-Provide safe examples using placeholders only (for example `.env.example` with empty values).
+Use environment variables, AWS Secrets Manager, GitHub OIDC/secret mechanisms, or the native secret mechanism of
+the target platform. Provide safe examples using placeholders only (for example `.env.example` with empty values).
 
 ## Data quality and quarantine
 
 Data quality is a first-class output of the platform, not an afterthought.
 
-Validation failures should be observable and, when appropriate, diverted to Quarantine instead of being silently dropped.
-Include enough context to answer:
-
-- which source produced the record?
-- which batch produced it?
-- why was it rejected?
-- when was it rejected?
-
-Do not silently coerce bad data into plausible values just to make a test pass.
-
-The boundary between ingestion-time validation (file/schema level, Airflow) and row-level validation (dbt) is
-open (ADR-002). The architecture diagram, README and this file must all describe the accepted boundary once decided.
+- Validation failures should be observable and, when appropriate, diverted to Quarantine instead of being silently dropped.
+- Include enough context to answer: which source produced the record? which batch produced it? why was it rejected?
+  when was it rejected?
+- Do not silently coerce bad data into plausible values just to make a test pass.
+- The boundary between ingestion-time validation (file/schema level, Airflow) and row-level validation (dbt) is
+  open (ADR-002). The architecture diagram, README and this file must all describe the accepted boundary once decided.
 
 ## Monitoring and cost control
 
-Use Airflow, CloudWatch Logs, and Databricks monitoring for operational visibility.
-The portfolio should demonstrate awareness of cloud cost, especially for MWAA and the Databricks SQL Warehouse.
-
+- Use Airflow, CloudWatch Logs, and Databricks monitoring for operational visibility.
+- The portfolio should demonstrate awareness of cloud cost, especially for MWAA and the Databricks SQL Warehouse.
 - MWAA is billed while the environment exists, even when idle, and cannot be paused; only deleting it stops the charge.
   The small environment cost roughly US$0.49/hour when this was written; check current pricing before each window.
   Networking (especially a NAT Gateway) and log storage are billed separately and are the usual surprises.
 - Use MWAA in short, planned windows. Every PR that involves MWAA states the expected window length, the
   estimated cost, and the exact destroy command. Creation and deletion take time that is also billed; account for it.
 - Databricks SQL Warehouse: smallest size, short auto-stop, no leaving it running between sessions.
-- AWS Budgets and alerts must exist before the first billable apply, and be created in the persistent stack once Terraform manages them.
+- AWS Budgets and alerts must exist before the first billable apply, and be created in the persistent stack once
+  Terraform manages them.
 - After a window, verify nothing is left running (console or Cost Explorer) and say so in the PR.
 - When adding a managed service, document why it is needed and what cost/operational trade-off it introduces.
 
@@ -432,22 +437,15 @@ The portfolio should demonstrate awareness of cloud cost, especially for MWAA an
 
 ## Documentation rules
 
-Update documentation when architecture, source choices, operational behavior, or setup steps change.
-At minimum, keep `README.md`, the technical datasheet/architecture references, and this file consistent enough
-that a new contributor can understand the actual state of the platform.
-
-ADRs live in `docs/decisions/` as `ADR-NNN-short-title.md` with: Context, Options (with trade-offs),
-Decision, Consequences, Status (`Proposed` / `Accepted` / `Superseded`). An agent may write a `Proposed` ADR;
-only Afonso moves it to `Accepted`.
-
-When a decision changes, document:
-
-- the old assumption
-- the new decision
-- why it changed
-- impact on architecture/cost/operations
-
-Every phase should leave visible proof that it works. Note in `docs/evidence/` what proof exists or is still to be captured.
+- Update documentation when architecture, source choices, operational behavior, or setup steps change.
+- At minimum, keep `README.md`, the technical datasheet/architecture references, and this file consistent enough
+  that a new contributor can understand the actual state of the platform.
+- ADRs live in `docs/decisions/` as `ADR-NNN-short-title.md` with: Context, Options (with trade-offs),
+  Decision, Consequences, Status (Proposed / Accepted / Superseded). An agent may write a Proposed ADR;
+  only Afonso moves it to Accepted.
+- When a decision changes, document: the old assumption, the new decision, why it changed, and the impact on
+  architecture/cost/operations.
+- Every phase should leave visible proof that it works. Note in `docs/evidence/` what proof exists or is still to be captured.
 
 ## Verification protocol
 
@@ -457,7 +455,8 @@ Before declaring a task complete:
 2. Run the narrowest relevant verification first.
 3. Run broader checks when the change crosses component boundaries.
 4. Report commands run and whether they passed or failed.
-5. Never claim a cloud deployment, API sync, Terraform apply, or external integration succeeded unless it was actually executed and verified.
+5. Never claim a cloud deployment, API sync, Terraform apply, or external integration succeeded unless it was
+   actually executed and verified.
 
 Typical checks, only when the corresponding project components exist:
 
@@ -507,14 +506,14 @@ Check whether any open ADR blocks the work. For small, local fixes, proceed dire
 
 ### 3. Implement minimally
 
-Make the smallest coherent change that satisfies the task.
-Do not opportunistically refactor unrelated code.
-Do not introduce new infrastructure services unless required.
+- Make the smallest coherent change that satisfies the task.
+- Do not opportunistically refactor unrelated code.
+- Do not introduce new infrastructure services unless required.
 
 ### 4. Verify
 
 Run focused tests/checks and inspect their output.
-For infrastructure, use `fmt`, `validate`, and `plan`; never `apply` (see "Permissions and safety").
+For infrastructure, use `fmt`, `validate`, and `plan`; never apply (see "Permissions and safety").
 
 ### 5. Report
 
