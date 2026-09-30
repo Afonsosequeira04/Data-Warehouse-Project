@@ -27,6 +27,46 @@ Rules for this block:
 - Never advance the phase yourself if the phase's Definition of Done (in `docs/NOTION_PROJECT_PLAN.md`) is not met.
   If it is only partly met, keep the phase and list what is missing in the PR.
 
+## Git workflow (mandatory, read first)
+
+Before touching any file, run `git branch --show-current`. If it is `main`, create the phase branch first
+(`git switch -c feat/pX-<name>` or `chore/<name>`), or STOP if the working tree is dirty. There are no exceptions,
+including bootstrap or docs-only work. Never commit to `main`, never push to `main`, never merge a PR.
+
+### Publishing (agent does this automatically after Phase closing)
+
+Standing authorization: applies to every phase; prompts do not need to repeat it. Run it only when the phase's
+closing commit (the "Current phase" update) exists. Otherwise do not push; report what is pending.
+The repo is PUBLIC. Steps:
+1. Pre-push checks. If any fails, stop and report; do not push.
+   - `git branch --show-current` is the phase branch, never `main`.
+   - `git status --short` is empty.
+   - `git ls-files | grep -E "\.env|tfstate|tfvars|profiles\.yml"` prints nothing.
+   - `git remote get-url origin` points to Afonso's repo.
+2. `git push -u origin <phase-branch>`. Never force-push. If credentials are requested or auth fails, stop and report.
+3. If `gh auth status` succeeds, run `gh pr create --base main --head <phase-branch> --title "<title>" --body-file /tmp/pr-body.md`.
+   Otherwise print https://github.com/<owner>/<repo>/compare/main...<phase-branch>?expand=1
+4. Print the raw output of `git status -sb` and `git ls-remote --heads origin <phase-branch>`.
+   If the branch is not on origin, the phase is NOT complete: say so in the first line of the report.
+5. Stop. Afonso reviews and merges on GitHub.
+
+### Post-merge cleanup
+
+The merge happens on GitHub and you cannot know when it was approved, so run this only in two situations:
+(a) Afonso asks (e.g. "cleanup P0" or /cleanup P0); (b) automatically as the first step of the next phase or chore,
+before creating its branch, for every leftover local phase or chore branch that is already merged. Never at any other time.
+1. `git fetch origin --prune`
+2. Verify the previous branch is really merged: `git merge-base --is-ancestor <phase-branch> origin/main` must succeed.
+   If it fails (PR not merged, or squash/rebase-merged), stop, report and ask Afonso; delete nothing and, in case (b),
+   do not start the new phase. If the branch no longer exists locally, there is nothing to clean up: continue.
+3. If the working tree has uncommitted changes, show them and STOP.
+4. `git checkout main && git pull --ff-only origin main`. Local main must end identical to origin/main
+   (`git rev-parse main origin/main` gives the same hash, `git status` clean). Never use `git reset --hard` or force-push.
+5. Delete the local branch with `git branch -d <phase-branch>` (never -D). Delete the remote one with
+   `git push origin --delete <phase-branch>` only if it still exists (`git ls-remote --heads origin <phase-branch>`);
+   GitHub may have deleted it already.
+6. Report `git branch -a` and `git log --oneline -5`.
+
 ## How Afonso starts work
 
 - "começa a fase atual" / "continua": work on the phase in "Current phase".
@@ -209,15 +249,12 @@ Avoid creating large generic frameworks for a portfolio project.
 ## Phase workflow (branch -> cleanup -> PR -> stop)
 
 One phase = one branch = one PR. Never commit directly to `main`.
-(Single exception: the very first commit that adds `AGENTS.md` and the plan, made by Afonso.)
 
 ### Start of phase
 
 1. Read "Current phase" in this file and the matching section of `docs/NOTION_PROJECT_PLAN.md`.
-2. `git switch main && git pull`, then create `feat/pX-<short-name>` (or `chore/...` for docs-only work).
+2. Run the Post-merge cleanup of the previous phase (see Git workflow), then create `feat/pX-<short-name>` (or `chore/...`) from an up-to-date main.
 3. For a large phase, make small commits with clear messages as you go.
-
-**For ANY task that edits files, first run `git branch --show-current`. If it is `main`, create the phase branch first (or STOP if the working tree is dirty). There are no exceptions, including bootstrap or documentation-only work.**
 
 ### End of phase: cleanup checklist (before opening the PR)
 
@@ -233,7 +270,7 @@ One phase = one branch = one PR. Never commit directly to `main`.
 
 ### Open the PR, then stop
 
-- Push the branch. Do not merge. Do not start the next phase.
+- Follow the Publishing steps in the Git workflow section. Do not merge. Do not start the next phase.
 - Produce a PR title and body containing: summary, files touched, verification results, cloud resources and cost
   impact, manual steps left, open decisions, evidence to capture.
 - Use `gh pr create` if `gh` is installed and authenticated; otherwise print the title and body so Afonso can paste
@@ -590,4 +627,5 @@ At the end of a phase, continue with "Phase workflow": cleanup checklist, PR, st
 - Never touch branches other than the current phase branch.
 - Phase workflow is triggered by the /phase command and cleanup by
   /cleanup (see .opencode/command/).
+- Plain-text requests such as "cleanup P0" follow the Post-merge cleanup section in the same way as /cleanup.
 
