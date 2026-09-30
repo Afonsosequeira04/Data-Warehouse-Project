@@ -6,10 +6,11 @@ This directory contains Architecture Decision Records for the Cloud Data Platfor
 
 | ADR | Title | Status |
 |-----|-------|--------|
-| [ADR-001](ADR-001-bronze-loading.md) | How Bronze is loaded from raw JSON in S3 | Proposed |
-| [ADR-002](ADR-002-quarantine-boundary.md) | Quarantine boundary: file/schema vs row level | Proposed |
-| [ADR-003](ADR-003-dbt-runner.md) | Where dbt runs in the daily DAG | Proposed |
-| [ADR-004](ADR-004-mwaa-operating-model.md) | MWAA ephemeral operating model | Proposed |
+| [ADR-001](ADR-001-bronze-loading.md) | How Bronze is loaded from raw JSON in S3 | Accepted |
+| [ADR-002](ADR-002-quarantine-boundary.md) | Quarantine boundary: file/schema vs row level | Accepted |
+| [ADR-003](ADR-003-dbt-runner.md) | Where dbt runs in the daily DAG | Accepted |
+| [ADR-004](ADR-004-mwaa-operating-model.md) | MWAA ephemeral operating model | Accepted |
+| [ADR-005](ADR-005-rds-operational-source.md) | Amazon RDS PostgreSQL as the operational source for Fivetran | Accepted |
 
 ## ADR Lifecycle
 

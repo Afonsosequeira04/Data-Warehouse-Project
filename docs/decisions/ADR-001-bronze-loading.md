@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed
+Accepted
 
 ## Context
 
@@ -105,7 +105,31 @@ Use dbt to define Bronze models that read from S3 via `read_files` or external t
 
 ## Decision
 
-*To be filled when Accepted: which option was chosen and why.*
+**COPY INTO through Databricks SQL Warehouse.**
+
+Reasoning:
+- SQL Warehouse is already part of the intended Databricks architecture
+- No long-lived general-purpose cluster is needed
+- Suitable for the project scale
+- Works with JSON files in S3
+- Supports retryable/idempotent ingestion behavior
+- Preserves immutable S3 raw
+- Easy to orchestrate from MWAA/Airflow
+- Avoids introducing another compute service
+
+Bronze technical metadata:
+- `_batch_id`
+- `_ingested_at`
+- `_source_file`
+- `_source_system`
+- `_batch_date`
+
+Do not introduce:
+- Auto Loader
+- Delta Live Tables
+- Spark job clusters
+- Glue
+- Another Bronze ingestion service
 
 ## Related
 

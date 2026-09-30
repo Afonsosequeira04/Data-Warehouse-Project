@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed
+Accepted
 
 ## Context
 
@@ -98,7 +98,36 @@ Similar to Option 3 but with a cleaner contract:
 
 ## Decision
 
-*To be filled when Accepted: which option was chosen and why.*
+**Hybrid quarantine boundary.**
+
+Structural validation during ingestion:
+- Valid JSON
+- Expected response structure
+- Required structural fields
+- Basic payload/schema integrity
+
+Structural failures:
+S3 quarantine.
+
+Semantic/business validation in dbt:
+- Business key validity
+- Allowed values
+- Relationships
+- Business rules
+- Completeness
+- Semantic consistency
+
+Semantic failures:
+`<catalog>.quarantine`
+
+Retain diagnostic metadata:
+- `source_system`
+- `source_file`
+- `batch_id`
+- `rejection_timestamp`
+- `rejection_reason`
+
+Do not silently discard bad data.
 
 ## Related
 
