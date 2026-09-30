@@ -14,10 +14,10 @@ over adding services just to make the architecture look larger.
 ## Current phase
 
 ```
-Current phase : P0 - Decisions and project bootstrap
+Current phase : P1 - Persistent foundation (Terraform + S3 + IAM + Unity Catalog)
 Status        : in progress
-Last completed: none
-Next phase    : P1 - Persistent foundation (Terraform + S3 + IAM + Unity Catalog)
+Last completed: P0 - Decisions and project bootstrap
+Next phase    : P2 - Ephemeral MWAA
 ```
 
 Rules for this block:
