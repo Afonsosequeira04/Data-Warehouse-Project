@@ -149,10 +149,10 @@ the current phase in `AGENTS.md`. Mirror these into Notion, never the other way 
 
 ### Manual prerequisites (Afonso)
 
-- [ ] AWS: MFA on the root account, an admin identity that is not root, and an **AWS Budget with alerts** created before anything billable.
-- [ ] Databricks: confirm the workspace plan/type and that it supports a storage credential and an external location on S3
+- [x] AWS: MFA on the root account, an admin identity that is not root, and an **AWS Budget with alerts** created before anything billable.
+- [x] Databricks: confirm the workspace plan/type and that it supports a storage credential and an external location on S3
       plus a SQL Warehouse. If not, P1 changes and this must be resolved first.
-- [ ] Fivetran: confirm whether the Databricks destination is available on the plan; otherwise mark P8 optional.
+- [x] Fivetran: confirm whether the Databricks destination is available on the plan; otherwise mark P8 optional.
 
 ### Definition of Done
 

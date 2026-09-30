@@ -97,7 +97,7 @@ Use these files as the primary project references:
 
 - `README.md` - public project overview and high-level setup.
 - `docs/technical_datasheet.pdf` - architecture, technology choices, constraints, and build order.
-- `docs/architecture1.png` - visual architecture reference.
+- `docs/project-architecture.png` - visual architecture reference.
 - `docs/NOTION_PROJECT_PLAN.md` - implementation roadmap, phases and Definition of Done. (Not in the repo root.)
 - `docs/decisions/` - Architecture Decision Records (ADRs). Decisions live here, not only in Notion,
   because OpenCode can only see the repository.
