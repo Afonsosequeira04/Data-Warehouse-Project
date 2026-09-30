@@ -22,7 +22,7 @@ See `AGENTS.md` (D-001 to D-006) for the full list.
 
 | Phase | Name | Main outcome |
 |---|---|---|
-| P0 | Decisions and bootstrap | ADRs accepted, sources and business questions chosen, guardrails ready |
+| P0 | Decisions and bootstrap | **DONE** — ADRs accepted, sources and business questions chosen, guardrails ready |
 | P1 | Persistent foundation | Terraform persistent stack, S3 raw, IAM, secrets, budget, Unity Catalog |
 | P2 | Ephemeral MWAA | Repeatable create/destroy of MWAA with a hello DAG |
 | P3 | API 1 ingestion | World Bank -> S3 raw -> Bronze |

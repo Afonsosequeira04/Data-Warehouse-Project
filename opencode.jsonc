@@ -11,6 +11,7 @@
       "git log*": "allow",
       "git show*": "allow",
       "git ls-files*": "allow",
+      "git ls-remote*": "allow",
       "git rev-parse*": "allow",
       "git remote*": "allow",
       "git merge-base*": "allow",
