@@ -1,25 +1,118 @@
+resource "aws_iam_role" "databricks_storage_credential" {
+  name = "${var.project_name}-databricks-storage-${var.environment}-${var.name_suffix}"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = "sts:AssumeRole"
+        Effect = "Allow"
+        Principal = {
+          AWS = "arn:${data.aws_partition.current.partition}:iam::${data.aws_caller_identity.current.account_id}:root"
+        }
+        Condition = {
+          StringEquals = {
+            "sts:ExternalId" = "PLACEHOLDER_WILL_BE_UPDATED_AFTER_STORAGE_CREDENTIAL_CREATION"
+          }
+        }
+      }
+    ]
+  })
+
+  tags = var.tags
+}
+
+resource "aws_iam_policy" "databricks_storage_credential" {
+  name        = "${var.project_name}-databricks-storage-${var.environment}-${var.name_suffix}"
+  description = "Policy for Databricks storage credential to access raw, DAG, and UC managed buckets"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "RawBucketAccess"
+        Effect = "Allow"
+        Action = [
+          "s3:GetObject",
+          "s3:ListBucket",
+          "s3:GetBucketLocation"
+        ]
+        Resource = [
+          var.raw_bucket_arn,
+          "${var.raw_bucket_arn}/*"
+        ]
+      },
+      {
+        Sid    = "DagBucketAccess"
+        Effect = "Allow"
+        Action = [
+          "s3:GetObject",
+          "s3:PutObject",
+          "s3:DeleteObject",
+          "s3:ListBucket",
+          "s3:GetBucketLocation"
+        ]
+        Resource = [
+          var.dag_bucket_arn,
+          "${var.dag_bucket_arn}/*"
+        ]
+      },
+      {
+        Sid    = "UCManagedBucketAccess"
+        Effect = "Allow"
+        Action = [
+          "s3:GetObject",
+          "s3:PutObject",
+          "s3:DeleteObject",
+          "s3:ListBucket",
+          "s3:GetBucketLocation"
+        ]
+        Resource = [
+          var.uc_managed_bucket_arn,
+          "${var.uc_managed_bucket_arn}/*"
+        ]
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "databricks_storage_credential" {
+  role       = aws_iam_role.databricks_storage_credential.name
+  policy_arn = aws_iam_policy.databricks_storage_credential.arn
+}
+
 resource "databricks_storage_credential" "s3" {
-  name            = "${var.project_name}-${var.environment}-storage-credential"
+  name            = "${var.project_name}-${var.environment}-${var.name_suffix}-storage-credential"
   read_only       = false
-  skip_validation = false
+  skip_validation = true
 
   aws_iam_role {
-    role_arn = var.databricks_storage_role_arn
+    role_arn = aws_iam_role.databricks_storage_credential.arn
   }
+
+  depends_on = [aws_iam_role.databricks_storage_credential, aws_iam_role_policy_attachment.databricks_storage_credential]
 }
 
 resource "databricks_external_location" "raw" {
-  name            = "${var.project_name}-${var.environment}-raw-location"
+  name            = "${var.project_name}-${var.environment}-${var.name_suffix}-raw-location"
   credential_name = databricks_storage_credential.s3.name
   url             = "s3://${var.raw_bucket_name}"
-  read_only       = false
+  read_only       = true
   skip_validation = false
 }
 
 resource "databricks_external_location" "dag" {
-  name            = "${var.project_name}-${var.environment}-dag-location"
+  name            = "${var.project_name}-${var.environment}-${var.name_suffix}-dag-location"
   credential_name = databricks_storage_credential.s3.name
   url             = "s3://${var.dag_bucket_name}"
+  read_only       = false
+  skip_validation = false
+}
+
+resource "databricks_external_location" "uc_managed" {
+  name            = "${var.project_name}-${var.environment}-${var.name_suffix}-uc-managed"
+  credential_name = databricks_storage_credential.s3.name
+  url             = "s3://${var.uc_managed_bucket_name}"
   read_only       = false
   skip_validation = false
 }
@@ -27,11 +120,8 @@ resource "databricks_external_location" "dag" {
 resource "databricks_catalog" "dwh_dev" {
   name         = "dwh_dev"
   comment      = "Data warehouse catalog for development environment"
-  storage_root = "s3://${var.raw_bucket_name}/unity-catalog"
-  metastore_id = data.databricks_metastore.workspace.metastore_id
+  storage_root = databricks_external_location.uc_managed.url
 }
-
-data "databricks_metastore" "workspace" {}
 
 resource "databricks_schema" "bronze" {
   name         = "bronze"
@@ -69,118 +159,181 @@ resource "databricks_schema" "raw_fivetran" {
   comment      = "Fivetran managed landing area for operational database"
 }
 
-resource "databricks_grant" "storage_credential_usage" {
-  principal          = "account users"
+# Storage credential grants
+resource "databricks_grant" "storage_credential_usage_pipeline" {
+  principal          = var.uc_principal_pipeline
   privileges         = ["USAGE"]
   storage_credential = databricks_storage_credential.s3.name
 }
 
-resource "databricks_grant" "external_location_usage_raw" {
-  principal         = "account users"
-  privileges        = ["USAGE"]
+# External location grants
+resource "databricks_grant" "external_location_raw_pipeline" {
+  principal         = var.uc_principal_pipeline
+  privileges        = ["READ_FILES"]
   external_location = databricks_external_location.raw.name
 }
 
-resource "databricks_grant" "external_location_usage_dag" {
-  principal         = "account users"
-  privileges        = ["USAGE"]
+resource "databricks_grant" "external_location_raw_bi" {
+  principal         = var.uc_principal_bi
+  privileges        = ["READ_FILES"]
+  external_location = databricks_external_location.raw.name
+}
+
+resource "databricks_grant" "external_location_raw_developer" {
+  principal         = var.uc_principal_developer
+  privileges        = ["READ_FILES"]
+  external_location = databricks_external_location.raw.name
+}
+
+resource "databricks_grant" "external_location_dag_pipeline" {
+  principal         = var.uc_principal_pipeline
+  privileges        = ["READ_FILES", "WRITE_FILES"]
   external_location = databricks_external_location.dag.name
 }
 
-resource "databricks_grant" "catalog_usage" {
-  principal  = "account users"
+resource "databricks_grant" "external_location_uc_managed_pipeline" {
+  principal         = var.uc_principal_pipeline
+  privileges        = ["READ_FILES", "WRITE_FILES", "CREATE_EXTERNAL_TABLE"]
+  external_location = databricks_external_location.uc_managed.name
+}
+
+# Catalog grants
+resource "databricks_grant" "catalog_usage_pipeline" {
+  principal  = var.uc_principal_pipeline
   privileges = ["USE_CATALOG"]
   catalog    = databricks_catalog.dwh_dev.name
 }
 
-resource "databricks_grant" "catalog_create_schema" {
-  principal  = "account users"
+resource "databricks_grant" "catalog_usage_bi" {
+  principal  = var.uc_principal_bi
+  privileges = ["USE_CATALOG"]
+  catalog    = databricks_catalog.dwh_dev.name
+}
+
+resource "databricks_grant" "catalog_usage_developer" {
+  principal  = var.uc_principal_developer
+  privileges = ["USE_CATALOG"]
+  catalog    = databricks_catalog.dwh_dev.name
+}
+
+resource "databricks_grant" "catalog_create_schema_pipeline" {
+  principal  = var.uc_principal_pipeline
   privileges = ["CREATE_SCHEMA"]
   catalog    = databricks_catalog.dwh_dev.name
 }
 
-resource "databricks_grant" "schema_usage_bronze" {
-  principal  = "account users"
-  privileges = ["USE_SCHEMA"]
-  schema     = databricks_schema.bronze.name
-  catalog    = databricks_catalog.dwh_dev.name
+# Schema grants - Bronze
+resource "databricks_grant" "schema_bronze_pipeline" {
+  principal  = var.uc_principal_pipeline
+  privileges = ["USE_SCHEMA", "CREATE_TABLE", "CREATE_EXTERNAL_TABLE", "SELECT", "MODIFY"]
+  schema     = "dwh_dev.bronze"
 }
 
-resource "databricks_grant" "schema_create_bronze" {
-  principal  = "account users"
-  privileges = ["CREATE_TABLE"]
-  schema     = databricks_schema.bronze.name
-  catalog    = databricks_catalog.dwh_dev.name
+resource "databricks_grant" "schema_bronze_bi" {
+  principal  = var.uc_principal_bi
+  privileges = ["USE_SCHEMA", "SELECT"]
+  schema     = "dwh_dev.bronze"
 }
 
-resource "databricks_grant" "schema_usage_silver" {
-  principal  = "account users"
-  privileges = ["USE_SCHEMA"]
-  schema     = databricks_schema.silver.name
-  catalog    = databricks_catalog.dwh_dev.name
+resource "databricks_grant" "schema_bronze_developer" {
+  principal  = var.uc_principal_developer
+  privileges = ["USE_SCHEMA", "SELECT"]
+  schema     = "dwh_dev.bronze"
 }
 
-resource "databricks_grant" "schema_create_silver" {
-  principal  = "account users"
-  privileges = ["CREATE_TABLE"]
-  schema     = databricks_schema.silver.name
-  catalog    = databricks_catalog.dwh_dev.name
+# Schema grants - Silver
+resource "databricks_grant" "schema_silver_pipeline" {
+  principal  = var.uc_principal_pipeline
+  privileges = ["USE_SCHEMA", "CREATE_TABLE", "CREATE_EXTERNAL_TABLE", "SELECT", "MODIFY"]
+  schema     = "dwh_dev.silver"
 }
 
-resource "databricks_grant" "schema_usage_gold" {
-  principal  = "account users"
-  privileges = ["USE_SCHEMA"]
-  schema     = databricks_schema.gold.name
-  catalog    = databricks_catalog.dwh_dev.name
+resource "databricks_grant" "schema_silver_bi" {
+  principal  = var.uc_principal_bi
+  privileges = ["USE_SCHEMA", "SELECT"]
+  schema     = "dwh_dev.silver"
 }
 
-resource "databricks_grant" "schema_create_gold" {
-  principal  = "account users"
-  privileges = ["CREATE_TABLE"]
-  schema     = databricks_schema.gold.name
-  catalog    = databricks_catalog.dwh_dev.name
+resource "databricks_grant" "schema_silver_developer" {
+  principal  = var.uc_principal_developer
+  privileges = ["USE_SCHEMA", "SELECT"]
+  schema     = "dwh_dev.silver"
 }
 
-resource "databricks_grant" "schema_usage_quarantine" {
-  principal  = "account users"
-  privileges = ["USE_SCHEMA"]
-  schema     = databricks_schema.quarantine.name
-  catalog    = databricks_catalog.dwh_dev.name
+# Schema grants - Gold
+resource "databricks_grant" "schema_gold_pipeline" {
+  principal  = var.uc_principal_pipeline
+  privileges = ["USE_SCHEMA", "CREATE_TABLE", "CREATE_EXTERNAL_TABLE", "SELECT", "MODIFY"]
+  schema     = "dwh_dev.gold"
 }
 
-resource "databricks_grant" "schema_create_quarantine" {
-  principal  = "account users"
-  privileges = ["CREATE_TABLE"]
-  schema     = databricks_schema.quarantine.name
-  catalog    = databricks_catalog.dwh_dev.name
+resource "databricks_grant" "schema_gold_bi" {
+  principal  = var.uc_principal_bi
+  privileges = ["USE_SCHEMA", "SELECT"]
+  schema     = "dwh_dev.gold"
 }
 
-resource "databricks_grant" "schema_usage_snapshots" {
-  principal  = "account users"
-  privileges = ["USE_SCHEMA"]
-  schema     = databricks_schema.snapshots.name
-  catalog    = databricks_catalog.dwh_dev.name
+resource "databricks_grant" "schema_gold_developer" {
+  principal  = var.uc_principal_developer
+  privileges = ["USE_SCHEMA", "SELECT"]
+  schema     = "dwh_dev.gold"
 }
 
-resource "databricks_grant" "schema_create_snapshots" {
-  principal  = "account users"
-  privileges = ["CREATE_TABLE"]
-  schema     = databricks_schema.snapshots.name
-  catalog    = databricks_catalog.dwh_dev.name
+# Schema grants - Quarantine
+resource "databricks_grant" "schema_quarantine_pipeline" {
+  principal  = var.uc_principal_pipeline
+  privileges = ["USE_SCHEMA", "CREATE_TABLE", "CREATE_EXTERNAL_TABLE", "SELECT", "MODIFY"]
+  schema     = "dwh_dev.quarantine"
 }
 
-resource "databricks_grant" "schema_usage_raw_fivetran" {
-  principal  = "account users"
-  privileges = ["USE_SCHEMA"]
-  schema     = databricks_schema.raw_fivetran.name
-  catalog    = databricks_catalog.dwh_dev.name
+resource "databricks_grant" "schema_quarantine_bi" {
+  principal  = var.uc_principal_bi
+  privileges = ["USE_SCHEMA", "SELECT"]
+  schema     = "dwh_dev.quarantine"
 }
 
-resource "databricks_grant" "schema_create_raw_fivetran" {
-  principal  = "account users"
-  privileges = ["CREATE_TABLE"]
-  schema     = databricks_schema.raw_fivetran.name
-  catalog    = databricks_catalog.dwh_dev.name
+resource "databricks_grant" "schema_quarantine_developer" {
+  principal  = var.uc_principal_developer
+  privileges = ["USE_SCHEMA", "SELECT"]
+  schema     = "dwh_dev.quarantine"
+}
+
+# Schema grants - Snapshots
+resource "databricks_grant" "schema_snapshots_pipeline" {
+  principal  = var.uc_principal_pipeline
+  privileges = ["USE_SCHEMA", "CREATE_TABLE", "CREATE_EXTERNAL_TABLE", "SELECT", "MODIFY"]
+  schema     = "dwh_dev.snapshots"
+}
+
+resource "databricks_grant" "schema_snapshots_bi" {
+  principal  = var.uc_principal_bi
+  privileges = ["USE_SCHEMA", "SELECT"]
+  schema     = "dwh_dev.snapshots"
+}
+
+resource "databricks_grant" "schema_snapshots_developer" {
+  principal  = var.uc_principal_developer
+  privileges = ["USE_SCHEMA", "SELECT"]
+  schema     = "dwh_dev.snapshots"
+}
+
+# Schema grants - Raw Fivetran
+resource "databricks_grant" "schema_raw_fivetran_pipeline" {
+  principal  = var.uc_principal_pipeline
+  privileges = ["USE_SCHEMA", "CREATE_TABLE", "CREATE_EXTERNAL_TABLE", "SELECT", "MODIFY"]
+  schema     = "dwh_dev.raw_fivetran"
+}
+
+resource "databricks_grant" "schema_raw_fivetran_bi" {
+  principal  = var.uc_principal_bi
+  privileges = ["USE_SCHEMA", "SELECT"]
+  schema     = "dwh_dev.raw_fivetran"
+}
+
+resource "databricks_grant" "schema_raw_fivetran_developer" {
+  principal  = var.uc_principal_developer
+  privileges = ["USE_SCHEMA", "SELECT"]
+  schema     = "dwh_dev.raw_fivetran"
 }
 
 data "databricks_sql_warehouse" "existing" {

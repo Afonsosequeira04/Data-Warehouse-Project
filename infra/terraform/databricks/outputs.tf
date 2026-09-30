@@ -3,6 +3,11 @@ output "storage_credential_name" {
   value       = databricks_storage_credential.s3.name
 }
 
+output "databricks_storage_role_arn" {
+  description = "ARN of the IAM role for Databricks storage credential"
+  value       = aws_iam_role.databricks_storage_credential.arn
+}
+
 output "external_location_raw_name" {
   description = "Name of the raw data external location"
   value       = databricks_external_location.raw.name
@@ -11,6 +16,11 @@ output "external_location_raw_name" {
 output "external_location_dag_name" {
   description = "Name of the DAG bucket external location"
   value       = databricks_external_location.dag.name
+}
+
+output "external_location_uc_managed_name" {
+  description = "Name of the Unity Catalog managed external location"
+  value       = databricks_external_location.uc_managed.name
 }
 
 output "catalog_name" {

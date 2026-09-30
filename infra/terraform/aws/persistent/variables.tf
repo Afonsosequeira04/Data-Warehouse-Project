@@ -22,22 +22,32 @@ variable "environment" {
   default     = "dev"
 }
 
+variable "name_suffix" {
+  description = "Unique suffix for globally unique bucket names (e.g., random string or account ID)"
+  type        = string
+}
+
 variable "raw_bucket_name" {
   description = "Name of the S3 bucket for immutable raw data"
   type        = string
-  default     = "dwh-raw-data-dev"
+  default     = "dwh-raw-data"
 }
 
 variable "dag_bucket_name" {
   description = "Name of the S3 bucket for MWAA DAGs and requirements"
   type        = string
-  default     = "dwh-mwaa-dags-dev"
+  default     = "dwh-mwaa-dags"
+}
+
+variable "state_bucket_name" {
+  description = "Name of the S3 bucket for Terraform state"
+  type        = string
+  default     = "dwh-terraform-state"
 }
 
 variable "budget_name" {
   description = "Name of the existing AWS Budget to import"
   type        = string
-  default     = "cloud-data-platform-budget"
 }
 
 variable "budget_limit_amount" {

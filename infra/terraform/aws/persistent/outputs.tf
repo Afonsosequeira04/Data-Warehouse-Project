@@ -18,14 +18,19 @@ output "dag_bucket_arn" {
   value       = aws_s3_bucket.dag.arn
 }
 
+output "uc_managed_bucket_name" {
+  description = "Name of the Unity Catalog managed storage S3 bucket"
+  value       = aws_s3_bucket.uc_managed.id
+}
+
+output "uc_managed_bucket_arn" {
+  description = "ARN of the Unity Catalog managed storage S3 bucket"
+  value       = aws_s3_bucket.uc_managed.arn
+}
+
 output "mwaa_execution_role_arn" {
   description = "ARN of the MWAA execution role"
   value       = aws_iam_role.mwaa_execution.arn
-}
-
-output "databricks_storage_role_arn" {
-  description = "ARN of the Databricks storage credential IAM role"
-  value       = aws_iam_role.databricks_storage_credential.arn
 }
 
 output "world_bank_secret_arn" {
