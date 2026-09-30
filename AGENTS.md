@@ -55,6 +55,9 @@ The repo is PUBLIC. Steps:
 The merge happens on GitHub and you cannot know when it was approved, so run this only in two situations:
 (a) Afonso asks (e.g. "cleanup P0" or /cleanup P0); (b) automatically as the first step of the next phase or chore,
 before creating its branch, for every leftover local phase or chore branch that is already merged. Never at any other time.
+
+Run `git fetch origin --prune` before any check. Never state whether a PR is merged or open without running `gh pr view --json state,mergedAt` or comparing with origin/main after the fetch.
+
 1. `git fetch origin --prune`
 2. Verify the previous branch is really merged: `git merge-base --is-ancestor <phase-branch> origin/main` must succeed.
    If it fails (PR not merged, or squash/rebase-merged), stop, report and ask Afonso; delete nothing and, in case (b),
