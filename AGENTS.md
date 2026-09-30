@@ -74,10 +74,7 @@ Before modifying an area, inspect the actual files and verify its current state.
 At the time of writing the repository contains documentation only: no code, no Terraform, no dbt project,
 no `.gitignore`, no dependency files. Verify this rather than trusting this paragraph.
 
-The datasheet and README intentionally contain placeholders such as `<API 1>`, `<API 2>`, and `<SaaS/DB>`.
-Never invent that these placeholders have already been selected or configured. Keep them explicit until the
-project makes a concrete source decision, recorded in `docs/data-sources.md` with status `Selected`.
-Only then update the README rows.
+The datasheet and README previously contained placeholders such as `<API 1>`, `<API 2>`, and `<SaaS/DB>`. These have been replaced with the selected sources: World Bank Indicators, FRED Economic Series, and Amazon RDS PostgreSQL via Fivetran. Never invent that placeholders have been selected; keep explicit until a concrete source decision is recorded in `docs/data-sources.md` with status `Selected`.
 
 ## Decisions already taken
 
@@ -96,42 +93,41 @@ D-005 and D-006 refine the datasheet: the datasheet's "shut resources down when 
 by destroying the ephemeral stack, because MWAA cannot be paused. The datasheet's flat `infra/terraform/aws/`
 becomes `aws/persistent/` and `aws/ephemeral/`.
 
+Also resolved (ADR-005): Amazon RDS PostgreSQL as the operational source for Fivetran.
+
 ## Open decisions (ADRs)
 
-These are unresolved. Do not implement code that depends on an open ADR. Present options and trade-offs,
-then wait for Afonso to accept one.
+These are resolved. All ADRs have been accepted by Afonso.
 
 | ADR | Question | Status |
 | --- | --- | --- |
-| ADR-001 | How is Bronze loaded from raw JSON in S3 (who runs it, which mechanism), given a SQL Warehouse and no cluster? | Proposed |
-| ADR-002 | Where is the quarantine boundary: file/schema level at ingestion, row level in dbt, or both? | Proposed |
-| ADR-003 | Where does dbt run in the daily DAG (inside MWAA, external runner, Databricks job)? | Proposed |
-| ADR-004 | MWAA operating model: creation/destruction workflow, what state must survive a destroy, networking cost options, how DAGs are validated before spending environment time. | Proposed |
+| ADR-001 | How is Bronze loaded from raw JSON in S3 (who runs it, which mechanism), given a SQL Warehouse and no cluster? | Accepted |
+| ADR-002 | Where is the quarantine boundary: file/schema level at ingestion, row level in dbt, or both? | Accepted |
+| ADR-003 | Where does dbt run in the daily DAG (inside MWAA, external runner, Databricks job)? | Accepted |
+| ADR-004 | MWAA operating model: creation/destruction workflow, what state must survive a destroy, networking cost options, how DAGs are validated before spending environment time. | Accepted |
+| ADR-005 | Amazon RDS PostgreSQL as the operational source for Fivetran | Accepted |
 
-Also open, tracked in `docs/data-sources.md` and `docs/business-questions.md`: the concrete API 1, API 2 and
-SaaS/DB sources, and the business questions the Gold layer must answer. Choose sources after the
-business questions, not before.
-
-If you find a new decision that is not covered here, propose a new ADR instead of choosing silently.
+Also resolved, tracked in `docs/data-sources.md` and `docs/business-questions.md`: the concrete API 1, API 2 and
+SaaS/DB sources, and the business questions the Gold layer must answer.
 
 ## Architecture
 
 ### End-to-end flow
 
 ```
-Public API 1 ─┐
-              ├─> MWAA / Airflow ─> S3 immutable raw ─> Databricks Bronze
-Public API 2 ─┘                                      └─> Quarantine for rejected records (boundary: ADR-002)
+World Bank API ─┐
+                ├─> MWAA / Airflow ─> S3 immutable raw ─> Databricks Bronze
+FRED API ───────┘                                      └─> Quarantine for rejected records (boundary: ADR-002)
 
-SaaS / Database ─> Fivetran ─> Databricks Raw Fivetran
+Amazon RDS PostgreSQL ─> Fivetran ─> Databricks (schema: raw_fivetran)
                                       │
                                       └─> dbt staging (Silver) ─> dbt marts (Gold) ─> AI/BI
 
 GitHub ─> GitHub Actions (OIDC) ─> Terraform / deployment / dbt checks
 ```
 
-The mechanism that turns raw JSON in S3 into a Bronze Delta table is not decided yet (ADR-001).
-Do not assume `COPY INTO`, `read_files`, streaming tables, or dbt does it.
+The mechanism that turns raw JSON in S3 into a Bronze Delta table is **COPY INTO via Databricks SQL Warehouse** (ADR-001).
+Do not assume `read_files`, streaming tables, or dbt does it.
 
 ### Core layers
 
@@ -158,7 +154,7 @@ Do not assume `COPY INTO`, `read_files`, streaming tables, or dbt does it.
 - Do not introduce AWS services that are outside the documented scope unless a concrete requirement justifies them.
 - Prefer S3, IAM, MWAA, VPC/networking, CloudWatch Logs, Secrets Manager, and AWS Budgets as the essential AWS footprint.
 - KMS, SNS, EventBridge, and CloudTrail are optional only when there is a demonstrated need.
-- Redshift, Glue, EMR, Athena, Kinesis, Lambda, DynamoDB, ECR, ECS, and RDS are out of scope unless the architecture is explicitly revised.
+- Redshift, Glue, EMR, Athena, Kinesis, Lambda, DynamoDB, ECR, ECS, and RDS are out of scope for general workloads, except for the approved operational PostgreSQL source defined by ADR-005.
   (Consequence: Terraform state locking must not use DynamoDB. See "Terraform conventions".)
 - Secrets and credentials must never be committed to Git. Use AWS Secrets Manager or the appropriate runtime secret mechanism.
 - GitHub authentication to AWS should use OIDC. Do not add long-lived AWS access keys to GitHub Actions.
@@ -221,6 +217,8 @@ One phase = one branch = one PR. Never commit directly to `main`.
 2. `git switch main && git pull`, then create `feat/pX-<short-name>` (or `chore/...` for docs-only work).
 3. For a large phase, make small commits with clear messages as you go.
 
+**For ANY task that edits files, first run `git branch --show-current`. If it is `main`, create the phase branch first (or STOP if the working tree is dirty). There are no exceptions, including bootstrap or documentation-only work.**
+
 ### End of phase: cleanup checklist (before opening the PR)
 
 - Remove scratch files, debug prints, commented-out code, unused imports and unused dependencies.
@@ -282,6 +280,14 @@ The agent must NOT:
 The report must include the exact commands executed and their results under `### Verification`.
 
 The report must explicitly state whether any cloud resources were created or modified and the resulting cost impact.
+
+The summary MUST include the raw output of:
+- `git branch --show-current`
+- `git status -sb`
+- `git ls-remote --heads origin <phase-branch>`
+- `gh pr view --json url,state` (or "gh unavailable")
+
+If the branch is not on origin, or the current branch is `main`, the phase is NOT complete and the first line of the summary must say so.
 
 ## Permissions and safety
 

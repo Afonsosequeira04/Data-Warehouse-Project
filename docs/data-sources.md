@@ -6,65 +6,66 @@ Status values: `Not selected` | `Shortlisted` | `Selected` | `Ready`
 
 ---
 
-## API 1 (Public REST API)
+## API 1 — World Bank Indicators
 
 | Property | Value |
 |----------|-------|
-| **Source Name** | `<API 1>` |
+| **Source Name** | `world_bank_indicators` |
 | **Type** | Public REST API |
-| **Owner/Provider** | Not selected |
-| **Base URL** | Not selected |
-| **Authentication** | Not selected (API key / OAuth / none) |
-| **Rate Limits** | Not selected |
-| **Pagination** | Not selected (cursor / offset / page) |
-| **Response Format** | Not selected (JSON) |
-| **Key Endpoints** | Not selected |
-| **Expected Volume (per run)** | Not selected |
-| **Data Grain** | Not selected (e.g., one record per transaction/event) |
-| **Raw S3 Path Pattern** | `s3://<bucket>/api/<source_name>/ingest_date=YYYY-MM-DD/<object>.json` |
-| **Destination** | Bronze: `<catalog>.bronze.<table>` |
-| **Status** | Not selected |
-| **Notes** | Prefer an API with pagination to demonstrate the ingestion pattern. |
+| **Owner/Provider** | World Bank |
+| **Base URL** | `https://api.worldbank.org/v2` |
+| **Authentication** | None |
+| **Rate Limits** | ~120 requests/second (undocumented, be respectful) |
+| **Pagination** | `page` + `per_page` (max 500 per page) |
+| **Response Format** | JSON |
+| **Key Endpoints** | `/country/{country}/indicator/{indicator}?format=json&per_page={per_page}&page={page}` |
+| **Expected Volume (per run)** | ~3 indicators × ~200 countries × 10 years = ~6,000 observations |
+| **Data Grain** | One observation per country + indicator + year |
+| **Raw S3 Path Pattern** | `s3://<bucket>/api/world_bank_indicators/ingest_date=YYYY-MM-DD/<object>.json` |
+| **Destination** | Bronze: `<catalog>.bronze.world_bank_indicators` |
+| **Status** | Selected |
+| **Notes** | Initial indicators: NY.GDP.MKTP.KD.ZG (GDP growth), FP.CPI.TOTL.ZG (inflation), SL.UEM.TOTL.ZS (unemployment). Historical analytical range: 10 years. |
 
 ---
 
-## API 2 (Public REST API)
+## API 2 — FRED Economic Series
 
 | Property | Value |
 |----------|-------|
-| **Source Name** | `<API 2>` |
+| **Source Name** | `fred_economic_series` |
 | **Type** | Public REST API |
-| **Owner/Provider** | Not selected |
-| **Base URL** | Not selected |
-| **Authentication** | Not selected (API key preferred to exercise Secrets Manager) |
-| **Rate Limits** | Not selected |
-| **Pagination** | Not selected (meaningfully different from API 1) |
-| **Response Format** | Not selected (JSON, different structure from API 1) |
-| **Key Endpoints** | Not selected |
-| **Expected Volume (per run)** | Not selected |
-| **Data Grain** | Not selected |
-| **Raw S3 Path Pattern** | `s3://<bucket>/api/<source_name>/ingest_date=YYYY-MM-DD/<object>.json` |
-| **Destination** | Bronze: `<catalog>.bronze.<table>` |
-| **Status** | Not selected |
-| **Notes** | Prefer a different response structure and auth mechanism from API 1 to prove architectural flexibility. |
+| **Owner/Provider** | Federal Reserve Bank of St. Louis / FRED |
+| **Base URL** | `https://api.stlouisfed.org/fred` |
+| **Authentication** | API key (provided later through approved secret mechanism) |
+| **Rate Limits** | 120 requests/minute per API key |
+| **Pagination** | `limit` + `offset` |
+| **Response Format** | JSON |
+| **Key Endpoints** | `/series/observations?series_id={series_id}&api_key={api_key}&file_type=json&limit={limit}&offset={offset}` |
+| **Expected Volume (per run)** | ~3 series × ~260 observations (5 years monthly) = ~780 observations |
+| **Data Grain** | One observation per series + observation date |
+| **Raw S3 Path Pattern** | `s3://<bucket>/api/fred_economic_series/ingest_date=YYYY-MM-DD/<object>.json` |
+| **Destination** | Bronze: `<catalog>.bronze.fred_economic_series` |
+| **Status** | Selected |
+| **Notes** | Initial series: CPIAUCSL (CPI), UNRATE (unemployment rate), FEDFUNDS (federal funds rate). Historical analytical range: 5 years. API key will be provided later through the approved secret mechanism. Do not claim a key already exists. Never put credentials in Git. |
 
 ---
 
-## SaaS / Database Source (Fivetran)
+## SaaS / Database Source — Amazon RDS PostgreSQL via Fivetran
 
 | Property | Value |
 |----------|-------|
-| **Source Name** | `<SaaS/DB>` |
-| **Type** | SaaS application or Database |
-| **Owner/Provider** | Not selected |
-| **Fivetran Connector** | Not selected |
-| **Authentication** | Not selected (API key / DB credentials / OAuth) |
-| **Sync Frequency** | Not selected (e.g., 15 min, 1 hour, 6 hours) |
-| **Expected Volume (per sync)** | Not selected |
-| **Data Grain** | Not selected |
-| **Destination** | Databricks: `<catalog>.raw_fivetran.<schema>.<table>` |
-| **Status** | Not selected |
-| **Notes** | Fivetran is optional (D-001). Confirm Databricks destination is available on the Fivetran plan. If not available or cost-prohibitive, mark P8 as formally skipped with reason. |
+| **Source Name** | `macro_watchlist_db` |
+| **Type** | Operational PostgreSQL database |
+| **Owner/Provider** | Amazon Web Services |
+| **Database** | Amazon RDS for PostgreSQL |
+| **Fivetran Connector** | PostgreSQL |
+| **Authentication** | Database credentials (provided later through approved secret mechanism) |
+| **Sync Frequency** | Daily (or on-demand via Airflow trigger) |
+| **Expected Volume (per sync)** | Under 1,000 rows total across all tables |
+| **Data Grain** | One row per entity (country, indicator, alert rule) |
+| **Destination** | Databricks: `dwh_dev.raw_fivetran.<table>` (Fivetran destination schema prefix to be confirmed in P8) |
+| **Status** | Selected |
+| **Notes** | Fivetran is optional (D-001). Confirm Databricks destination is available on the Fivetran plan. If not available or cost-prohibitive, mark P8 as formally skipped with reason. This source is NOT a copy of World Bank or FRED data. It is a small operational/master-data source controlling the macro watchlist and alert configuration. Tables: `watchlist_country`, `watchlist_indicator`, `alert_rule`. See ADR-005 for details. Security: TLS, dedicated read-only Fivetran database user, restricted network access, no 0.0.0.0/0 exposure, no credentials in Git, future credentials stored through approved secret mechanism. |
 
 ---
 
@@ -84,6 +85,6 @@ Status values: `Not selected` | `Shortlisted` | `Selected` | `Ready`
 
 | Date | Source | Previous Status | New Status | Decision Maker | Notes |
 |------|--------|-----------------|------------|----------------|-------|
-| - | API 1 | - | Not selected | - | Awaiting business questions |
-| - | API 2 | - | Not selected | - | Awaiting business questions |
-| - | SaaS/DB | - | Not selected | - | Awaiting business questions + Fivetran plan check |
+| 2026-09-29 | World Bank Indicators | Not selected | Selected | Afonso | Approved for BQ-001, BQ-003 |
+| 2026-09-29 | FRED Economic Series | Not selected | Selected | Afonso | Approved for BQ-002 |
+| 2026-09-29 | Amazon RDS PostgreSQL (macro_watchlist_db) | Not selected | Selected | Afonso | Approved for BQ-001, BQ-003; Fivetran path |

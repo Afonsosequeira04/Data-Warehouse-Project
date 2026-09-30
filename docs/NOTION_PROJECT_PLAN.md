@@ -25,12 +25,12 @@ See `AGENTS.md` (D-001 to D-006) for the full list.
 | P0 | Decisions and bootstrap | ADRs accepted, sources and business questions chosen, guardrails ready |
 | P1 | Persistent foundation | Terraform persistent stack, S3 raw, IAM, secrets, budget, Unity Catalog |
 | P2 | Ephemeral MWAA | Repeatable create/destroy of MWAA with a hello DAG |
-| P3 | API 1 ingestion | API 1 -> S3 raw -> Bronze |
-| P4 | API 2 ingestion | Second API shape through the same pattern |
+| P3 | API 1 ingestion | World Bank -> S3 raw -> Bronze |
+| P4 | API 2 ingestion | FRED -> S3 raw -> Bronze |
 | P5 | dbt Silver + Gold | Models, tests, snapshots |
 | P6 | Data quality + quarantine | Rejected records visible and explained |
 | P7 | daily_pipeline | Full DAG running in an MWAA window |
-| P8 | Fivetran (optional) | Managed ingestion path, or a documented skip |
+| P8 | Fivetran ingestion path | Managed ingestion path (RDS PostgreSQL -> Fivetran -> Databricks) |
 | P9 | CI/CD with OIDC | PR checks and merge-to-main deployment (persistent stack only) |
 | P10 | AI/BI dashboards | Business and data-quality dashboards |
 | P11 | Hardening | Security, cost, idempotency, docs, evidence |
@@ -133,19 +133,19 @@ the current phase in `AGENTS.md`. Mirror these into Notion, never the other way 
 
 ### Decisions (Afonso, with OpenCode shortlists)
 
-- [ ] Accept or amend ADR-001 (how Bronze is loaded and who runs it).
-- [ ] Accept or amend ADR-002 (quarantine boundary).
-- [ ] Accept or amend ADR-003 (where dbt runs).
-- [ ] Accept or amend ADR-004 (MWAA ephemeral operating model).
-- [ ] Define 1-2 business questions the Gold layer and dashboard must answer, **before** choosing APIs.
-- [ ] Shortlist and choose **API 1**. Prefer one with pagination.
-- [ ] Shortlist and choose **API 2** with a meaningfully different response structure. Prefer one that needs an API key
-      (exercises Secrets Manager).
-- [ ] Choose the **SaaS/DB source** for Fivetran, or mark P8 optional/skipped with a reason.
-- [ ] Record each source in `docs/data-sources.md` and in the Data Sources database.
-- [ ] Define a rough data grain for each source.
-- [ ] Define target catalog and schemas in Unity Catalog.
-- [ ] Define environment naming convention (`dev` and `prod` only if actually needed).
+- [x] Accept or amend ADR-001 (how Bronze is loaded and who runs it) — **Accepted: COPY INTO via SQL Warehouse**
+- [x] Accept or amend ADR-002 (quarantine boundary) — **Accepted: Hybrid (ingestion structural, dbt semantic)**
+- [x] Accept or amend ADR-003 (where dbt runs) — **Accepted: dbt from MWAA execution context against SQL Warehouse**
+- [x] Accept or amend ADR-004 (MWAA ephemeral operating model) — **Accepted: GitHub Actions create/destroy, private subnets + NAT**
+- [x] Accept ADR-005 (RDS PostgreSQL operational source for Fivetran) — **Accepted**
+- [x] Define business questions the Gold layer and dashboard must answer, **before** choosing APIs — **BQ-001, BQ-002, BQ-003 Approved**
+- [x] Shortlist and choose **API 1** — **World Bank Indicators API** (pagination, no auth)
+- [x] Shortlist and choose **API 2** — **FRED Economic Series API** (API key auth, limit/offset pagination)
+- [x] Choose the **SaaS/DB source** for Fivetran — **Amazon RDS PostgreSQL** (`macro_watchlist_db`)
+- [x] Record each source in `docs/data-sources.md` and in the Data Sources database.
+- [x] Define a rough data grain for each source.
+- [x] Define target catalog and schemas in Unity Catalog — **Catalog: `dwh_dev`; Schemas: `bronze`, `silver`, `gold`, `quarantine`, `snapshots`, `raw_fivetran` (Fivetran destination schema prefix to be confirmed in P8)**
+- [x] Define environment naming convention (`dev` and `prod` only if actually needed).
 
 ### Manual prerequisites (Afonso)
 
@@ -156,11 +156,11 @@ the current phase in `AGENTS.md`. Mirror these into Notion, never the other way 
 
 ### Definition of Done
 
-- ADR-001 to ADR-004 are `Accepted` (or replaced by accepted alternatives).
-- API 1, API 2, and SaaS/DB are no longer placeholders, or Fivetran is formally skipped.
-- Data sources have expected schemas/grains documented.
-- The first Gold/dashboard questions are defined and the chosen sources can answer them.
-- Cost guardrails exist (AWS Budget, alerts).
+- ADR-001 to ADR-005 are `Accepted`.
+- API 1 (World Bank Indicators), API 2 (FRED), and SaaS/DB (Amazon RDS PostgreSQL) are no longer placeholders.
+- Data sources have expected schemas/grains documented in `docs/data-sources.md`.
+- The Gold/dashboard questions (BQ-001, BQ-002, BQ-003) are defined and the chosen sources can answer them.
+- Cost guardrails exist (AWS Budget $10/month with alerts at 50%, 80%, 100% actual and 100% forecasted).
 - The Databricks workspace capability is confirmed.
 - No implementation depends on an undocumented service.
 
@@ -187,12 +187,14 @@ the current phase in `AGENTS.md`. Mirror these into Notion, never the other way 
 - [ ] Resource tagging convention for cost attribution.
 - [ ] Validate that no credentials are stored in Git.
 
+**Note:** The approved RDS PostgreSQL source (`macro_watchlist_db`) is a later implementation task. When implemented, its Terraform representation should be added to the persistent stack. This is not part of P1 scope.
+
 ### Databricks / Unity Catalog tasks
 
 - [ ] Confirm the Unity Catalog metastore / workspace relationship.
 - [ ] Storage credential and IAM role, resolving the external-ID circular dependency (verify the current documented procedure).
 - [ ] S3 external location.
-- [ ] Target catalog and the `bronze`, `silver`, `gold`, `quarantine`, `snapshots` schemas.
+- [ ] Target catalog `dwh_dev` and the `bronze`, `silver`, `gold`, `quarantine`, `snapshots`, `raw_fivetran` schemas (Fivetran destination schema prefix to be confirmed in P8).
 - [ ] Baseline grants for pipeline, BI, and developer access.
 - [ ] SQL Warehouse: smallest size, short auto-stop.
 - [ ] Verify Databricks can read the intended S3 location without hard-coded cloud credentials.
@@ -246,7 +248,7 @@ before any real pipeline depends on it.
 
 ---
 
-# 4. P3 - API 1 ingestion: Python -> Airflow -> S3 -> Bronze
+# 4. P3 - World Bank ingestion: Python -> Airflow -> S3 -> Bronze
 
 **Goal:** complete the first real ingestion path end to end.
 
@@ -254,17 +256,17 @@ Client logic is tested with `pytest` and recorded fixtures without MWAA running.
 
 ### Tasks
 
-- [ ] Create a source-specific API client.
-- [ ] Implement authentication/configuration through secrets or environment variables.
-- [ ] Implement pagination if required.
+- [ ] Create a source-specific API client for World Bank Indicators.
+- [ ] Implement authentication/configuration through secrets or environment variables (no auth required for World Bank).
+- [ ] Implement pagination (page + per_page).
 - [ ] Implement rate-limit handling.
 - [ ] Implement bounded retries with backoff.
 - [ ] Validate response shape.
-- [ ] Write raw JSON to the immutable S3 path.
+- [ ] Write raw JSON to the immutable S3 path (`s3://<bucket>/api/world_bank_indicators/ingest_date=YYYY-MM-DD/`).
 - [ ] Generate a batch identifier.
 - [ ] Include ingestion-date information.
 - [ ] Add technical metadata for Bronze.
-- [ ] Create the first Bronze Delta table using the mechanism accepted in ADR-001.
+- [ ] Create the first Bronze Delta table using the mechanism accepted in ADR-001 (COPY INTO via SQL Warehouse).
 - [ ] Test a successful run.
 - [ ] Test an expected API/schema failure.
 - [ ] Test a retry/idempotency scenario.
@@ -282,17 +284,17 @@ A real API call produces a dated raw object in S3 and a usable Bronze table, wit
 
 ---
 
-# 5. P4 - API 2 ingestion
+# 5. P4 - FRED ingestion
 
 **Goal:** prove the architecture handles more than one API shape.
 
 ### Tasks
 
-- [ ] Build API 2 client independently from API 1.
+- [ ] Build FRED client independently from World Bank client.
 - [ ] Reuse common ingestion utilities only where genuinely useful.
-- [ ] Handle the source's own pagination/rate-limit/schema rules.
-- [ ] Write API 2 raw payloads to its own S3 prefix.
-- [ ] Add API 2 Bronze table.
+- [ ] Handle FRED's pagination (limit + offset), rate limits (120 req/min), and API key auth.
+- [ ] Write FRED raw payloads to its own S3 prefix (`s3://<bucket>/api/fred_economic_series/ingest_date=YYYY-MM-DD/`).
+- [ ] Add FRED Bronze table (`<catalog>.bronze.fred_economic_series`).
 - [ ] Add validation for source-specific fields.
 - [ ] Test a bad payload/validation path.
 - [ ] Confirm both APIs can coexist in the same daily pipeline without overwriting each other's raw data.
@@ -403,25 +405,36 @@ and the environment can be destroyed and rebuilt without losing the ability to r
 
 ---
 
-# 9. P8 - Fivetran ingestion path (optional but valuable)
+# 9. P8 - Fivetran ingestion path
 
-**Goal:** demonstrate a second ingestion strategy without making the entire platform depend on Fivetran.
+**Goal:** demonstrate a managed database ingestion strategy using:
+
+```
+Amazon RDS PostgreSQL
+-> Fivetran
+-> Databricks (schema: raw_fivetran, prefix to be confirmed in P8)
+```
+
+Fivetran is the intended second ingestion strategy, but can only be formally skipped later if the actual Fivetran plan/account does not support the Databricks destination or another documented blocker exists.
 
 ### Tasks
 
-- [ ] Create/confirm the real SaaS/DB source.
-- [ ] Configure the Fivetran connector.
-- [ ] Configure the Databricks destination if the selected Fivetran plan supports it.
-- [ ] Define the target `raw_fivetran` area/table convention.
-- [ ] Validate direct write into Databricks.
+- [ ] Create/prepare the RDS PostgreSQL source (`macro_watchlist_db`) in the persistent stack.
+- [ ] Seed `macro_watchlist_db` with `watchlist_country`, `watchlist_indicator`, `alert_rule` tables.
+- [ ] Configure the Fivetran PostgreSQL connector.
+- [ ] Configure the Databricks destination (verify Fivetran plan supports it).
+- [ ] Define `raw_fivetran` convention: `dwh_dev.raw_fivetran.<table>` (Fivetran destination schema prefix to be confirmed in P8; Unity Catalog uses three-level naming: catalog.schema.table).
+- [ ] Validate initial synchronization.
+- [ ] Validate incremental synchronization (Query-Based using `xmin`).
 - [ ] Integrate trigger/wait logic with Airflow.
-- [ ] Validate the sync state from Airflow.
 - [ ] Add downstream dbt staging for the ingested data.
-- [ ] Verify the pipeline can still function without Fivetran when the connector is disabled.
+- [ ] Verify core pipeline remains functional if Fivetran is disabled.
 
 ### Definition of Done
 
 Fivetran demonstrates a managed ingestion path while the core AWS + Databricks + dbt pipeline remains independent.
+
+Because RDS is a persistent resource, note that its later Terraform implementation should use the project's persistent infrastructure strategy, while the source-specific integration work belongs to P8.
 
 ---
 
@@ -611,7 +624,10 @@ Start here, in this order:
 1. Commit the new `AGENTS.md` and this plan to `main` (the only direct commit).
 2. Do the manual prerequisites listed in P0 (AWS Budget, MFA, non-root admin, Databricks workspace check).
 3. Run the bootstrap prompt in OpenCode on branch `chore/p0-bootstrap`. Review the PR and merge.
-4. Answer the ADR questions and accept ADR-001 to ADR-004.
-5. Write the business questions, then ask OpenCode for source shortlists (auth, pagination, rate limits, response format) and choose.
-6. Fill `docs/data-sources.md` and the Notion databases. When the P0 Definition of Done is met, update "Current phase" and move to P1.
-7. Do not start MWAA, Fivetran, or CI/CD before the data contracts for the first API are understood.
+4. Answer the ADR questions and accept ADR-001 to ADR-005 (all now Accepted).
+5. Write the business questions (BQ-001, BQ-002, BQ-003 now Approved), then select sources.
+6. Fill `docs/data-sources.md` and the Notion databases (World Bank, FRED, RDS PostgreSQL now Selected).
+7. When the P0 Definition of Done is met, update "Current phase" and move to P1.
+8. Do not start MWAA, Fivetran, or CI/CD before the data contracts for the first API are understood.
+
+**P0 is complete when all ADRs are Accepted, sources are Selected, business questions are Approved, and the documentation reflects the final architecture.**

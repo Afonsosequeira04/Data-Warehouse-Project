@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed
+Accepted
 
 ## Context
 
@@ -111,7 +111,28 @@ Run dbt models as SQL statements directly on SQL Warehouse via dbt's SQL executi
 
 ## Decision
 
-*To be filled when Accepted: which option was chosen and why.*
+**dbt runs from the MWAA execution context against the Databricks SQL Warehouse.**
+
+MWAA owns orchestration.
+
+The later daily pipeline will conceptually orchestrate:
+
+```
+API ingestion
+-> Bronze readiness
+-> optional/enabled Fivetran sync
+-> dbt build
+-> dbt test
+-> quality checks
+```
+
+Do not implement the DAG in P0.
+
+Do not create a dbt project in P0.
+
+Do not use dbt Cloud.
+
+Do not create a Databricks Job Cluster.
 
 ## Related
 

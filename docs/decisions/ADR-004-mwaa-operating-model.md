@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed
+Accepted
 
 ## Context
 
@@ -141,7 +141,29 @@ Web server public, workers private with NAT.
 
 ## Decision
 
-*To be filled when Accepted: which operating model and networking option were chosen and why.*
+**Use manually triggered GitHub Actions workflows for ephemeral MWAA create/destroy.**
+
+Operating model:
+- Persistent Terraform stack survives
+- Ephemeral stack contains MWAA and related networking
+- Create is manually triggered
+- Destroy is manually triggered
+- Merge to main must not automatically create MWAA
+- DAG validation happens before provisioning
+- Evidence is collected before destruction
+- Post-destroy verification confirms nothing billable remains
+
+Networking:
+- Private MWAA subnets
+- One NAT Gateway for the portfolio environment
+
+Trade-off:
+- Realistic private AWS architecture
+- Lower cost/complexity than redundant NAT
+- Not intended as production-grade highly available NAT design
+- Acceptable because MWAA is ephemeral
+
+Do not implement networking in P0.
 
 ## Related
 
