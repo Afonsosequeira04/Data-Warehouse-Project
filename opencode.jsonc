@@ -12,6 +12,7 @@
       "git show*": "allow",
       "git ls-files*": "allow",
       "git ls-remote*": "allow",
+      "bash scripts/cleanup.sh*": "allow",
       "git rev-parse*": "allow",
       "git remote*": "allow",
       "git merge-base*": "allow",

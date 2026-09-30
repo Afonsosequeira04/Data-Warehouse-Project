@@ -56,6 +56,8 @@ The merge happens on GitHub and you cannot know when it was approved, so run thi
 (a) Afonso asks (e.g. "cleanup P0" or /cleanup P0); (b) automatically as the first step of the next phase or chore,
 before creating its branch, for every leftover local phase or chore branch that is already merged. Never at any other time.
 
+Always run cleanup with `bash scripts/cleanup.sh <branch>`; do not re-implement its steps by hand.
+
 Run `git fetch origin --prune` before any check. Never state whether a PR is merged or open without running `gh pr view --json state,mergedAt` or comparing with origin/main after the fetch.
 
 1. `git fetch origin --prune`
