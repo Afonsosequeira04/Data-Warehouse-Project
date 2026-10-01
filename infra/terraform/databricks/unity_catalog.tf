@@ -115,7 +115,8 @@ resource "databricks_external_location" "uc_managed" {
 resource "databricks_catalog" "dwh_dev" {
   name         = "dwh_dev"
   comment      = "Data warehouse catalog for development environment"
-  storage_root = databricks_external_location.uc_managed.url
+  storage_root = "s3://${var.uc_managed_bucket_name}/"
+  depends_on   = [databricks_external_location.uc_managed]
 }
 
 resource "databricks_schema" "bronze" {
