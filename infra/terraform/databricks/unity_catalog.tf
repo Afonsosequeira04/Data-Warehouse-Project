@@ -1,23 +1,12 @@
-resource "aws_iam_role" "databricks_storage_credential" {
-  name = "${var.project_name}-databricks-storage-${var.environment}-${var.name_suffix}"
+data "databricks_aws_unity_catalog_assume_role_policy" "storage_credential" {
+  external_id    = var.storage_credential_external_id
+  role_name      = "${var.project_name}-databricks-storage-${var.environment}-${var.name_suffix}"
+  aws_account_id = data.aws_caller_identity.current.account_id
+}
 
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Action = "sts:AssumeRole"
-        Effect = "Allow"
-        Principal = {
-          AWS = "arn:${data.aws_partition.current.partition}:iam::${data.aws_caller_identity.current.account_id}:root"
-        }
-        Condition = {
-          StringEquals = {
-            "sts:ExternalId" = "PLACEHOLDER_WILL_BE_UPDATED_AFTER_STORAGE_CREDENTIAL_CREATION"
-          }
-        }
-      }
-    ]
-  })
+resource "aws_iam_role" "databricks_storage_credential" {
+  name               = "${var.project_name}-databricks-storage-${var.environment}-${var.name_suffix}"
+  assume_role_policy = data.databricks_aws_unity_catalog_assume_role_policy.storage_credential.json
 
   tags = var.tags
 }
@@ -84,7 +73,7 @@ resource "aws_iam_role_policy_attachment" "databricks_storage_credential" {
 resource "databricks_storage_credential" "s3" {
   name            = "${var.project_name}-${var.environment}-${var.name_suffix}-storage-credential"
   read_only       = false
-  skip_validation = true
+  skip_validation = var.storage_credential_external_id == "0000"
 
   aws_iam_role {
     role_arn = aws_iam_role.databricks_storage_credential.arn

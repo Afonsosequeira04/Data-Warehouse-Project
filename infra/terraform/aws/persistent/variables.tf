@@ -56,6 +56,11 @@ variable "budget_limit_amount" {
   default     = 10
 }
 
+variable "budget_notification_email" {
+  description = "Email address for budget notifications"
+  type        = string
+}
+
 variable "tags" {
   description = "Common tags applied to all resources"
   type        = map(string)

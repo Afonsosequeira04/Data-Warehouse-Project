@@ -91,6 +91,12 @@ variable "uc_principal_developer" {
   default     = "account users"
 }
 
+variable "storage_credential_external_id" {
+  description = "External ID for the Databricks storage credential IAM role trust policy. Use a fake value (e.g., '0000') for first apply, then the real value from terraform output for second apply."
+  type        = string
+  default     = "0000"
+}
+
 variable "tags" {
   description = "Common tags"
   type        = map(string)
