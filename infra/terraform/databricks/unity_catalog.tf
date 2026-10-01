@@ -60,6 +60,12 @@ resource "aws_iam_policy" "databricks_storage_credential" {
           var.uc_managed_bucket_arn,
           "${var.uc_managed_bucket_arn}/*"
         ]
+      },
+      {
+        Sid      = "SelfAssumeRole"
+        Effect   = "Allow"
+        Action   = ["sts:AssumeRole"]
+        Resource = "arn:${data.aws_partition.current.partition}:iam::${data.aws_caller_identity.current.account_id}:role/${var.project_name}-databricks-storage-${var.environment}-${var.name_suffix}"
       }
     ]
   })
@@ -87,7 +93,7 @@ resource "databricks_external_location" "raw" {
   credential_name = databricks_storage_credential.s3.name
   url             = "s3://${var.raw_bucket_name}"
   read_only       = true
-  skip_validation = false
+  skip_validation = var.storage_credential_external_id == "0000"
 }
 
 resource "databricks_external_location" "dag" {
@@ -95,7 +101,7 @@ resource "databricks_external_location" "dag" {
   credential_name = databricks_storage_credential.s3.name
   url             = "s3://${var.dag_bucket_name}"
   read_only       = false
-  skip_validation = false
+  skip_validation = var.storage_credential_external_id == "0000"
 }
 
 resource "databricks_external_location" "uc_managed" {
@@ -103,7 +109,7 @@ resource "databricks_external_location" "uc_managed" {
   credential_name = databricks_storage_credential.s3.name
   url             = "s3://${var.uc_managed_bucket_name}"
   read_only       = false
-  skip_validation = false
+  skip_validation = var.storage_credential_external_id == "0000"
 }
 
 resource "databricks_catalog" "dwh_dev" {
@@ -146,13 +152,6 @@ resource "databricks_schema" "raw_fivetran" {
   name         = "raw_fivetran"
   catalog_name = databricks_catalog.dwh_dev.name
   comment      = "Fivetran managed landing area for operational database"
-}
-
-# Storage credential grants
-resource "databricks_grant" "storage_credential_usage_pipeline" {
-  principal          = var.uc_principal_pipeline
-  privileges         = ["USAGE"]
-  storage_credential = databricks_storage_credential.s3.name
 }
 
 # External location grants
@@ -214,7 +213,7 @@ resource "databricks_grant" "catalog_create_schema_pipeline" {
 # Schema grants - Bronze
 resource "databricks_grant" "schema_bronze_pipeline" {
   principal  = var.uc_principal_pipeline
-  privileges = ["USE_SCHEMA", "CREATE_TABLE", "CREATE_EXTERNAL_TABLE", "SELECT", "MODIFY"]
+  privileges = ["USE_SCHEMA", "CREATE_TABLE", "CREATE_EXTERNAL_TABLE", "SELECT"]
   schema     = "dwh_dev.bronze"
 }
 
@@ -233,7 +232,7 @@ resource "databricks_grant" "schema_bronze_developer" {
 # Schema grants - Silver
 resource "databricks_grant" "schema_silver_pipeline" {
   principal  = var.uc_principal_pipeline
-  privileges = ["USE_SCHEMA", "CREATE_TABLE", "CREATE_EXTERNAL_TABLE", "SELECT", "MODIFY"]
+  privileges = ["USE_SCHEMA", "CREATE_TABLE", "CREATE_EXTERNAL_TABLE", "SELECT"]
   schema     = "dwh_dev.silver"
 }
 
@@ -252,7 +251,7 @@ resource "databricks_grant" "schema_silver_developer" {
 # Schema grants - Gold
 resource "databricks_grant" "schema_gold_pipeline" {
   principal  = var.uc_principal_pipeline
-  privileges = ["USE_SCHEMA", "CREATE_TABLE", "CREATE_EXTERNAL_TABLE", "SELECT", "MODIFY"]
+  privileges = ["USE_SCHEMA", "CREATE_TABLE", "CREATE_EXTERNAL_TABLE", "SELECT"]
   schema     = "dwh_dev.gold"
 }
 
@@ -271,7 +270,7 @@ resource "databricks_grant" "schema_gold_developer" {
 # Schema grants - Quarantine
 resource "databricks_grant" "schema_quarantine_pipeline" {
   principal  = var.uc_principal_pipeline
-  privileges = ["USE_SCHEMA", "CREATE_TABLE", "CREATE_EXTERNAL_TABLE", "SELECT", "MODIFY"]
+  privileges = ["USE_SCHEMA", "CREATE_TABLE", "CREATE_EXTERNAL_TABLE", "SELECT"]
   schema     = "dwh_dev.quarantine"
 }
 
@@ -290,7 +289,7 @@ resource "databricks_grant" "schema_quarantine_developer" {
 # Schema grants - Snapshots
 resource "databricks_grant" "schema_snapshots_pipeline" {
   principal  = var.uc_principal_pipeline
-  privileges = ["USE_SCHEMA", "CREATE_TABLE", "CREATE_EXTERNAL_TABLE", "SELECT", "MODIFY"]
+  privileges = ["USE_SCHEMA", "CREATE_TABLE", "CREATE_EXTERNAL_TABLE", "SELECT"]
   schema     = "dwh_dev.snapshots"
 }
 
@@ -309,7 +308,7 @@ resource "databricks_grant" "schema_snapshots_developer" {
 # Schema grants - Raw Fivetran
 resource "databricks_grant" "schema_raw_fivetran_pipeline" {
   principal  = var.uc_principal_pipeline
-  privileges = ["USE_SCHEMA", "CREATE_TABLE", "CREATE_EXTERNAL_TABLE", "SELECT", "MODIFY"]
+  privileges = ["USE_SCHEMA", "CREATE_TABLE", "CREATE_EXTERNAL_TABLE", "SELECT"]
   schema     = "dwh_dev.raw_fivetran"
 }
 

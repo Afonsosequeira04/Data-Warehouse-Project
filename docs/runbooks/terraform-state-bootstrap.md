@@ -71,7 +71,7 @@ aws s3api get-bucket-encryption --bucket "dwh-terraform-state-${NAME_SUFFIX}" --
 aws s3api get-public-access-block --bucket "dwh-terraform-state-${NAME_SUFFIX}" --profile dwh
 ```
 
-## 3. Create a local terraform.tfvars (gitignored)
+## 3. Create Local terraform.tfvars Files (gitignored)
 
 Create `infra/terraform/aws/persistent/terraform.tfvars` and `infra/terraform/databricks/terraform.tfvars` to avoid repeating `-var` flags. Both files are gitignored.
 
@@ -79,7 +79,7 @@ Create `infra/terraform/aws/persistent/terraform.tfvars` and `infra/terraform/da
 # AWS Persistent Stack tfvars
 cat > infra/terraform/aws/persistent/terraform.tfvars <<EOF
 name_suffix              = "${NAME_SUFFIX}"
-budget_name              = "your-existing-budget-name"
+budget_name              = "cloud-data-platform-budget"
 budget_notification_email = "your-email@example.com"
 EOF
 
@@ -104,7 +104,18 @@ git check-ignore infra/terraform/aws/persistent/terraform.tfvars
 git check-ignore infra/terraform/databricks/terraform.tfvars
 ```
 
-## 4. Deploy AWS Persistent Stack (Single Apply)
+## 4. Set Databricks Credentials via Environment Variables
+
+The Databricks provider reads credentials from `DATABRICKS_HOST` and `DATABRICKS_TOKEN` environment variables (or `TF_VAR_databricks_host` / `TF_VAR_databricks_token`).
+
+```bash
+export DATABRICKS_HOST="https://<workspace-url>.databricks.com"
+export DATABRICKS_TOKEN="<personal-access-token>"
+export AWS_PROFILE="dwh"
+export AWS_REGION="us-east-2"
+```
+
+## 5. Deploy AWS Persistent Stack (Single Apply)
 
 ```bash
 cd infra/terraform/aws/persistent
@@ -121,8 +132,8 @@ terraform validate
 terraform import aws_budgets_budget.main "$(aws sts get-caller-identity --query Account --output text --profile dwh):${BUDGET_NAME}"
 
 # Plan and apply (uses terraform.tfvars)
-terraform plan
-terraform apply
+terraform plan -out=plan.tfplan
+terraform apply plan.tfplan
 ```
 
 Capture outputs:
@@ -132,70 +143,74 @@ Capture outputs:
 
 Update `infra/terraform/databricks/terraform.tfvars` with the bucket ARNs and names from AWS stack outputs.
 
-## 5. Deploy Databricks Stack (Two Apply Flow)
+## 6. Deploy Databricks Stack (Two Apply Flow)
 
-### First Apply (with fake external_id, skip_validation = true)
+### First Apply (with fake external_id, skip_validation = true, targeted)
 
 ```bash
 cd ../../databricks
 
-# Initialize
-terraform init
+# Initialize with backend config pointing to your state bucket
+terraform init -backend-config="bucket=dwh-terraform-state-${NAME_SUFFIX}"
 
 # Validate
 terraform validate
 
-# Plan and apply (uses terraform.tfvars with storage_credential_external_id = "0000")
-terraform plan
-terraform apply
+# First apply: create storage credential with fake external_id and skip_validation = true
+# Target only the storage credential to avoid validating external locations with fake ID
+terraform plan -target=databricks_storage_credential.s3 -out=plan1.tfplan
+terraform apply plan1.tfplan
 ```
 
 This creates:
 - IAM role with trust policy using fake external_id "0000"
 - Storage credential with `skip_validation = true`
-- External locations, catalog, schemas, grants
 
 ### Get the Real External ID
 
 ```bash
 # After first apply, get the real external_id from the storage credential
-terraform output -raw storage_credential_external_id
-# Example output: d3b07384d113edec49eaa6238ad5ff00
+# In Databricks UI: Catalog > External Data > Credentials > click the credential > copy "External ID"
+# Or via Databricks API
+# Note: The storage_credential_external_id output was removed as the attribute could not be verified in provider docs
 ```
 
-### Second Apply (with real external_id, skip_validation = false)
+### Second Apply (with real external_id, skip_validation = false, full stack)
 
 ```bash
-# Update terraform.tfvars with the real external_id
-sed -i "s/storage_credential_external_id = \"0000\"/storage_credential_external_id = \"<REAL_EXTERNAL_ID>\"/" terraform.tfvars
+# Edit infra/terraform/databricks/terraform.tfvars by hand and replace:
+# storage_credential_external_id = "0000"
+# with the real external ID from the Databricks UI (e.g., "d3b07384d113edec49eaa6238ad5ff00")
 
-# Plan and apply again
-terraform plan
-terraform apply
+# Full plan and apply
+terraform plan -out=plan2.tfplan
+terraform apply plan2.tfplan
 ```
 
 This updates:
 - IAM role trust policy with the real external_id (via `databricks_aws_unity_catalog_assume_role_policy` data source)
 - Storage credential with `skip_validation = false` (now validates the IAM role)
+- External locations with `skip_validation = false` (now validate the credential)
+- Catalog, schemas, grants
 
-## 6. Post-Deploy Steps
+## 7. Post-Deploy Steps
 
-### Set Secret Values in AWS Secrets Manager
+### Set Secret Values in AWS Secrets Manager (when needed for later phases)
 
 ```bash
-# FRED API key
+# FRED API key (for P3)
 aws secretsmanager put-secret-value \
   --secret-id cloud-data-platform/fred \
   --secret-string '{"base_url":"https://api.stlouisfed.org/fred","api_key":"<YOUR_FRED_API_KEY>"}' \
   --profile dwh
 
-# Fivetran RDS connection
+# Fivetran RDS connection (for P8)
 aws secretsmanager put-secret-value \
   --secret-id cloud-data-platform/fivetran-rds \
   --secret-string '{"host":"<RDS_ENDPOINT>","port":5432,"database":"macro_watchlist_db","username":"<USER>","password":"<PASSWORD>"}' \
   --profile dwh
 
-# Databricks connection
+# Databricks connection (for CI/CD)
 aws secretsmanager put-secret-value \
   --secret-id cloud-data-platform/databricks \
   --secret-string '{"host":"<DATABRICKS_HOST>","token":"<DATABRICKS_TOKEN>"}' \
@@ -229,34 +244,35 @@ aws s3 cp test.json "s3://${RAW_BUCKET}/test/verify.json" --profile dwh
 ## Notes
 
 - **Budget**: The $10/month AWS Budget is imported. Notifications are defined in code (50%, 80%, 100% actual; 100% forecasted). After import, `terraform plan` will show no changes to notifications if they already match the existing budget.
-- **Secrets**: Only secret containers are created by Terraform. Secret values must be set manually in AWS Secrets Manager after deployment (see step 6).
+- **Secrets**: Only secret containers are created by Terraform. Secret values must be set manually in AWS Secrets Manager after deployment (see step 7, needed for later phases).
 - **SQL Warehouse**: Free Edition allows only one SQL Warehouse. The stack references the existing one via data source.
 - **Metastore**: Free Edition has one metastore per account attached to the workspace. The stack creates the catalog without explicit `metastore_id` (workspace-level auth).
 - **Grants**: Three principal variables for least privilege: `uc_principal_pipeline` (write), `uc_principal_bi` (read gold), `uc_principal_developer` (read all). Default to `account users`; restrict for production.
 - **State Locking**: Uses native lockfile locking (`use_lockfile = true`) since DynamoDB is out of scope.
-- **Two-Apply Flow**: Required to resolve the circular dependency between IAM role trust policy (needs storage credential's external_id) and storage credential (needs IAM role). First apply uses fake external_id with `skip_validation = true`; second apply uses real external_id with `skip_validation = false`.
+- **Two-Apply Flow**: Required to resolve the circular dependency between IAM role trust policy (needs storage credential's external_id) and storage credential (needs IAM role). First apply uses fake external_id with `skip_validation = true` targeted to storage credential; second apply uses real external_id with `skip_validation = false` for full stack.
 
 ## Grant Reference (for PR body)
 
-All grants use principal variables. Verify each privilege against Databricks provider docs:
+All grants use principal variables. Verified against Unity Catalog docs where possible:
 
 | Securable | Principal | Privileges | Verified in Docs |
 |-----------|-----------|------------|------------------|
-| Storage Credential | pipeline | USAGE | Yes (storage_credential USAGE) |
-| External Location (raw) | pipeline, bi, developer | READ_FILES | Yes (external_location READ_FILES) |
-| External Location (dag) | pipeline | READ_FILES, WRITE_FILES | Yes (external_location READ_FILES, WRITE_FILES) |
-| External Location (uc_managed) | pipeline | READ_FILES, WRITE_FILES, CREATE_EXTERNAL_TABLE | Yes (external_location CREATE_EXTERNAL_TABLE) |
-| Catalog (dwh_dev) | pipeline, bi, developer | USE_CATALOG | Yes (catalog USE_CATALOG) |
-| Catalog (dwh_dev) | pipeline | CREATE_SCHEMA | Yes (catalog CREATE_SCHEMA) |
-| Schema (dwh_dev.bronze) | pipeline | USE_SCHEMA, CREATE_TABLE, CREATE_EXTERNAL_TABLE, SELECT, MODIFY | USE_SCHEMA, CREATE_TABLE, CREATE_EXTERNAL_TABLE, SELECT verified; MODIFY not verified for schema |
+| External Location (raw) | pipeline, bi, developer | READ_FILES | Yes |
+| External Location (dag) | pipeline | READ_FILES, WRITE_FILES | Yes |
+| External Location (uc_managed) | pipeline | READ_FILES, WRITE_FILES, CREATE_EXTERNAL_TABLE | Yes |
+| Catalog (dwh_dev) | pipeline, bi, developer | USE_CATALOG | Yes |
+| Catalog (dwh_dev) | pipeline | CREATE_SCHEMA | Yes |
+| Schema (dwh_dev.bronze) | pipeline | USE_SCHEMA, CREATE_TABLE, CREATE_EXTERNAL_TABLE, SELECT | USE_SCHEMA, CREATE_TABLE, CREATE_EXTERNAL_TABLE, SELECT verified |
 | Schema (dwh_dev.bronze) | bi, developer | USE_SCHEMA, SELECT | USE_SCHEMA, SELECT verified |
-| Schema (dwh_dev.silver) | pipeline | USE_SCHEMA, CREATE_TABLE, CREATE_EXTERNAL_TABLE, SELECT, MODIFY | Same as bronze |
+| Schema (dwh_dev.silver) | pipeline | USE_SCHEMA, CREATE_TABLE, CREATE_EXTERNAL_TABLE, SELECT | Same as bronze |
 | Schema (dwh_dev.silver) | bi, developer | USE_SCHEMA, SELECT | Same as bronze |
-| Schema (dwh_dev.gold) | pipeline | USE_SCHEMA, CREATE_TABLE, CREATE_EXTERNAL_TABLE, SELECT, MODIFY | Same as bronze |
+| Schema (dwh_dev.gold) | pipeline | USE_SCHEMA, CREATE_TABLE, CREATE_EXTERNAL_TABLE, SELECT | Same as bronze |
 | Schema (dwh_dev.gold) | bi, developer | USE_SCHEMA, SELECT | Same as bronze |
-| Schema (dwh_dev.quarantine) | pipeline | USE_SCHEMA, CREATE_TABLE, CREATE_EXTERNAL_TABLE, SELECT, MODIFY | Same as bronze |
+| Schema (dwh_dev.quarantine) | pipeline | USE_SCHEMA, CREATE_TABLE, CREATE_EXTERNAL_TABLE, SELECT | Same as bronze |
 | Schema (dwh_dev.quarantine) | bi, developer | USE_SCHEMA, SELECT | Same as bronze |
-| Schema (dwh_dev.snapshots) | pipeline | USE_SCHEMA, CREATE_TABLE, CREATE_EXTERNAL_TABLE, SELECT, MODIFY | Same as bronze |
+| Schema (dwh_dev.snapshots) | pipeline | USE_SCHEMA, CREATE_TABLE, CREATE_EXTERNAL_TABLE, SELECT | Same as bronze |
 | Schema (dwh_dev.snapshots) | bi, developer | USE_SCHEMA, SELECT | Same as bronze |
-| Schema (dwh_dev.raw_fivetran) | pipeline | USE_SCHEMA, CREATE_TABLE, CREATE_EXTERNAL_TABLE, SELECT, MODIFY | Same as bronze |
+| Schema (dwh_dev.raw_fivetran) | pipeline | USE_SCHEMA, CREATE_TABLE, CREATE_EXTERNAL_TABLE, SELECT | Same as bronze |
 | Schema (dwh_dev.raw_fivetran) | bi, developer | USE_SCHEMA, SELECT | Same as bronze |
+
+**Removed**: Storage credential USAGE grant (not a valid privilege on storage credential). MODIFY privilege on schemas (not verified for schemas).
