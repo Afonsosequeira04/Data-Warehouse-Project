@@ -106,11 +106,11 @@ git check-ignore infra/terraform/databricks/terraform.tfvars
 
 ## 4. Set Databricks Credentials via Environment Variables
 
-The Databricks provider reads credentials from `DATABRICKS_HOST` and `DATABRICKS_TOKEN` environment variables (or `TF_VAR_databricks_host` / `TF_VAR_databricks_token`).
+The Databricks provider reads credentials from `TF_VAR_databricks_host` and `TF_VAR_databricks_token` environment variables.
 
 ```bash
-export DATABRICKS_HOST="https://<workspace-url>.databricks.com"
-export DATABRICKS_TOKEN="<personal-access-token>"
+export TF_VAR_databricks_host="https://<workspace-url>.databricks.com"
+export TF_VAR_databricks_token="<personal-access-token>"
 export AWS_PROFILE="dwh"
 export AWS_REGION="us-east-2"
 ```
@@ -213,7 +213,7 @@ aws secretsmanager put-secret-value \
 # Databricks connection (for CI/CD)
 aws secretsmanager put-secret-value \
   --secret-id cloud-data-platform/databricks \
-  --secret-string '{"host":"<DATABRICKS_HOST>","token":"<DATABRICKS_TOKEN>"}' \
+  --secret-string '{"host":"${TF_VAR_databricks_host}","token":"${TF_VAR_databricks_token}"}' \
   --profile dwh
 ```
 
