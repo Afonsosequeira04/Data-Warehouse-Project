@@ -60,7 +60,8 @@ resource "aws_iam_policy" "mwaa_execution" {
         Resource = [
           aws_secretsmanager_secret.world_bank.arn,
           aws_secretsmanager_secret.fred.arn,
-          aws_secretsmanager_secret.fivetran_rds.arn
+          aws_secretsmanager_secret.fivetran_rds.arn,
+          aws_secretsmanager_secret.databricks.arn
         ]
       },
       {
