@@ -172,32 +172,32 @@ the current phase in `AGENTS.md`. Mirror these into Notion, never the other way 
 
 ### Terraform bootstrap
 
-- [ ] Decide and document the Terraform state approach (remote S3 backend; native lockfile locking since DynamoDB is out of scope).
-- [ ] Document how the state bucket itself is bootstrapped.
-- [ ] Create `infra/terraform/aws/persistent` and `infra/terraform/databricks` with `fmt` / `validate` / `plan` passing.
+- [x] Decide and document the Terraform state approach (remote S3 backend; native lockfile locking since DynamoDB is out of scope).
+- [x] Document how the state bucket itself is bootstrapped.
+- [x] Create `infra/terraform/aws/persistent` and `infra/terraform/databricks` with `fmt` / `validate` / `plan` passing.
 
 ### AWS tasks (persistent stack)
 
-- [ ] Raw/landing S3 bucket: versioning, SSE-S3, public access blocked, `prevent_destroy`, no `force_destroy`.
-- [ ] Separate S3 location (or bucket) for MWAA DAGs and `requirements.txt`, also persistent.
-- [ ] Define the raw path convention and document it.
-- [ ] IAM roles/policies with least privilege.
-- [ ] Secrets Manager entries (names and structure only, no secret values in Git).
-- [ ] AWS Budgets managed in Terraform (or the manual budget documented and imported).
-- [ ] Resource tagging convention for cost attribution.
-- [ ] Validate that no credentials are stored in Git.
+- [x] Raw/landing S3 bucket: versioning, SSE-S3, public access blocked, `prevent_destroy`, no `force_destroy`.
+- [x] Separate S3 location (or bucket) for MWAA DAGs and `requirements.txt`, also persistent.
+- [x] Define the raw path convention and document it.
+- [x] IAM roles/policies with least privilege.
+- [x] Secrets Manager entries (names and structure only, no secret values in Git).
+- [x] AWS Budgets managed in Terraform (or the manual budget documented and imported).
+- [x] Resource tagging convention for cost attribution.
+- [x] Validate that no credentials are stored in Git.
 
 **Note:** The approved RDS PostgreSQL source (`macro_watchlist_db`) is a later implementation task. When implemented, its Terraform representation should be added to the persistent stack. This is not part of P1 scope.
 
 ### Databricks / Unity Catalog tasks
 
-- [ ] Confirm the Unity Catalog metastore / workspace relationship.
-- [ ] Storage credential and IAM role, resolving the external-ID circular dependency (verify the current documented procedure).
-- [ ] S3 external location.
-- [ ] Target catalog `dwh_dev` and the `bronze`, `silver`, `gold`, `quarantine`, `snapshots`, `raw_fivetran` schemas (Fivetran destination schema prefix to be confirmed in P8).
-- [ ] Baseline grants for pipeline, BI, and developer access.
-- [ ] SQL Warehouse: smallest size, short auto-stop.
-- [ ] Verify Databricks can read the intended S3 location without hard-coded cloud credentials.
+- [x] Confirm the Unity Catalog metastore / workspace relationship.
+- [x] Storage credential and IAM role, resolving the external-ID circular dependency (verify the current documented procedure).
+- [x] S3 external location.
+- [x] Target catalog `dwh_dev` and the `bronze`, `silver`, `gold`, `quarantine`, `snapshots`, `raw_fivetran` schemas (Fivetran destination schema prefix to be confirmed in P8).
+- [x] Baseline grants for pipeline, BI, and developer access.
+- [x] SQL Warehouse: smallest size, short auto-stop.
+- [x] Verify Databricks can read the intended S3 location without hard-coded cloud credentials.
 
 ### Definition of Done
 

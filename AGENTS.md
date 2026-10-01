@@ -14,10 +14,10 @@ over adding services just to make the architecture look larger.
 ## Current phase
 
 ```
-Current phase : P1 - Persistent foundation (Terraform + S3 + IAM + Unity Catalog)
+Current phase : P2 - Ephemeral MWAA
 Status        : in progress
-Last completed: P0 - Decisions and project bootstrap
-Next phase    : P2 - Ephemeral MWAA
+Last completed: P1 - Persistent foundation
+Next phase    : P3 - API 1 ingestion
 ```
 
 Rules for this block:
@@ -116,8 +116,8 @@ component exists merely because it appears in the datasheet or architecture diag
 
 Before modifying an area, inspect the actual files and verify its current state.
 
-At the time of writing the repository contains documentation only: no code, no Terraform, no dbt project,
-no `.gitignore`, no dependency files. Verify this rather than trusting this paragraph.
+At the time of writing the repository contains documentation, Terraform (AWS persistent + Databricks stacks),
+.gitignore, and dependency lock files. No dbt project, no ingestion/orchestration code yet. Verify this rather than trusting this paragraph.
 
 The datasheet and README previously contained placeholders such as `<API 1>`, `<API 2>`, and `<SaaS/DB>`. These have been replaced with the selected sources: World Bank Indicators, FRED Economic Series, and Amazon RDS PostgreSQL via Fivetran. Never invent that placeholders have been selected; keep explicit until a concrete source decision is recorded in `docs/data-sources.md` with status `Selected`.
 
