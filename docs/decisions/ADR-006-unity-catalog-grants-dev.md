@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed
+Accepted
 
 ## Context
 
@@ -32,7 +32,6 @@ Use one `databricks_grants` resource per securable object (catalog, schemas, ext
   - `CREATE_EXTERNAL_TABLE` correctly placed only on external locations
 - Cons:
   - In dev, all three roles collapse to `account users`, so no actual separation of access
-  - Pipeline gets read access to raw/silver/bronze through BI grant overlap if not careful (but BI only has gold)
 
 ### Option 2: Separate grants with distinct principals (requires groups)
 
