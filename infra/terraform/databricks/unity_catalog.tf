@@ -65,7 +65,7 @@ resource "aws_iam_policy" "databricks_storage_credential" {
         Sid      = "SelfAssumeRole"
         Effect   = "Allow"
         Action   = ["sts:AssumeRole"]
-        Resource = "arn:${data.aws_partition.current.partition}:iam::${data.aws_caller_identity.current.account_id}:role/${var.project_name}-databricks-storage-${var.environment}-${var.name_suffix}"
+        Resource = [aws_iam_role.databricks_storage_credential.arn]
       }
     ]
   })
@@ -214,114 +214,114 @@ resource "databricks_grant" "catalog_create_schema_pipeline" {
 resource "databricks_grant" "schema_bronze_pipeline" {
   principal  = var.uc_principal_pipeline
   privileges = ["USE_SCHEMA", "CREATE_TABLE", "CREATE_EXTERNAL_TABLE", "SELECT"]
-  schema     = "dwh_dev.bronze"
+  schema     = databricks_schema.bronze.id
 }
 
 resource "databricks_grant" "schema_bronze_bi" {
   principal  = var.uc_principal_bi
   privileges = ["USE_SCHEMA", "SELECT"]
-  schema     = "dwh_dev.bronze"
+  schema     = databricks_schema.bronze.id
 }
 
 resource "databricks_grant" "schema_bronze_developer" {
   principal  = var.uc_principal_developer
   privileges = ["USE_SCHEMA", "SELECT"]
-  schema     = "dwh_dev.bronze"
+  schema     = databricks_schema.bronze.id
 }
 
 # Schema grants - Silver
 resource "databricks_grant" "schema_silver_pipeline" {
   principal  = var.uc_principal_pipeline
   privileges = ["USE_SCHEMA", "CREATE_TABLE", "CREATE_EXTERNAL_TABLE", "SELECT"]
-  schema     = "dwh_dev.silver"
+  schema     = databricks_schema.silver.id
 }
 
 resource "databricks_grant" "schema_silver_bi" {
   principal  = var.uc_principal_bi
   privileges = ["USE_SCHEMA", "SELECT"]
-  schema     = "dwh_dev.silver"
+  schema     = databricks_schema.silver.id
 }
 
 resource "databricks_grant" "schema_silver_developer" {
   principal  = var.uc_principal_developer
   privileges = ["USE_SCHEMA", "SELECT"]
-  schema     = "dwh_dev.silver"
+  schema     = databricks_schema.silver.id
 }
 
 # Schema grants - Gold
 resource "databricks_grant" "schema_gold_pipeline" {
   principal  = var.uc_principal_pipeline
   privileges = ["USE_SCHEMA", "CREATE_TABLE", "CREATE_EXTERNAL_TABLE", "SELECT"]
-  schema     = "dwh_dev.gold"
+  schema     = databricks_schema.gold.id
 }
 
 resource "databricks_grant" "schema_gold_bi" {
   principal  = var.uc_principal_bi
   privileges = ["USE_SCHEMA", "SELECT"]
-  schema     = "dwh_dev.gold"
+  schema     = databricks_schema.gold.id
 }
 
 resource "databricks_grant" "schema_gold_developer" {
   principal  = var.uc_principal_developer
   privileges = ["USE_SCHEMA", "SELECT"]
-  schema     = "dwh_dev.gold"
+  schema     = databricks_schema.gold.id
 }
 
 # Schema grants - Quarantine
 resource "databricks_grant" "schema_quarantine_pipeline" {
   principal  = var.uc_principal_pipeline
   privileges = ["USE_SCHEMA", "CREATE_TABLE", "CREATE_EXTERNAL_TABLE", "SELECT"]
-  schema     = "dwh_dev.quarantine"
+  schema     = databricks_schema.quarantine.id
 }
 
 resource "databricks_grant" "schema_quarantine_bi" {
   principal  = var.uc_principal_bi
   privileges = ["USE_SCHEMA", "SELECT"]
-  schema     = "dwh_dev.quarantine"
+  schema     = databricks_schema.quarantine.id
 }
 
 resource "databricks_grant" "schema_quarantine_developer" {
   principal  = var.uc_principal_developer
   privileges = ["USE_SCHEMA", "SELECT"]
-  schema     = "dwh_dev.quarantine"
+  schema     = databricks_schema.quarantine.id
 }
 
 # Schema grants - Snapshots
 resource "databricks_grant" "schema_snapshots_pipeline" {
   principal  = var.uc_principal_pipeline
   privileges = ["USE_SCHEMA", "CREATE_TABLE", "CREATE_EXTERNAL_TABLE", "SELECT"]
-  schema     = "dwh_dev.snapshots"
+  schema     = databricks_schema.snapshots.id
 }
 
 resource "databricks_grant" "schema_snapshots_bi" {
   principal  = var.uc_principal_bi
   privileges = ["USE_SCHEMA", "SELECT"]
-  schema     = "dwh_dev.snapshots"
+  schema     = databricks_schema.snapshots.id
 }
 
 resource "databricks_grant" "schema_snapshots_developer" {
   principal  = var.uc_principal_developer
   privileges = ["USE_SCHEMA", "SELECT"]
-  schema     = "dwh_dev.snapshots"
+  schema     = databricks_schema.snapshots.id
 }
 
 # Schema grants - Raw Fivetran
 resource "databricks_grant" "schema_raw_fivetran_pipeline" {
   principal  = var.uc_principal_pipeline
   privileges = ["USE_SCHEMA", "CREATE_TABLE", "CREATE_EXTERNAL_TABLE", "SELECT"]
-  schema     = "dwh_dev.raw_fivetran"
+  schema     = databricks_schema.raw_fivetran.id
 }
 
 resource "databricks_grant" "schema_raw_fivetran_bi" {
   principal  = var.uc_principal_bi
   privileges = ["USE_SCHEMA", "SELECT"]
-  schema     = "dwh_dev.raw_fivetran"
+  schema     = databricks_schema.raw_fivetran.id
 }
 
 resource "databricks_grant" "schema_raw_fivetran_developer" {
   principal  = var.uc_principal_developer
   privileges = ["USE_SCHEMA", "SELECT"]
-  schema     = "dwh_dev.raw_fivetran"
+  schema     = databricks_schema.raw_fivetran.id
 }
 
 data "databricks_sql_warehouse" "existing" {
