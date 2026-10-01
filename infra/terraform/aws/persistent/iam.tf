@@ -72,14 +72,6 @@ resource "aws_iam_policy" "mwaa_execution" {
           "logs:CreateLogGroup"
         ]
         Resource = "arn:${data.aws_partition.current.partition}:logs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:log-group:airflow/${var.project_name}-${var.environment}*"
-      },
-      {
-        Sid    = "DatabricksSQLAccess"
-        Effect = "Allow"
-        Action = [
-          "databricks:sql:*"
-        ]
-        Resource = "*"
       }
     ]
   })
