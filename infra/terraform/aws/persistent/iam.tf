@@ -7,7 +7,10 @@ resource "aws_iam_role" "mwaa_execution" {
       Action = "sts:AssumeRole"
       Effect = "Allow"
       Principal = {
-        Service = "airflow.amazonaws.com"
+        Service = [
+          "airflow.amazonaws.com",
+          "airflow-env.amazonaws.com"
+        ]
       }
     }]
   })
@@ -43,12 +46,23 @@ resource "aws_iam_policy" "mwaa_execution" {
           "s3:GetObject",
           "s3:PutObject",
           "s3:DeleteObject",
-          "s3:ListBucket"
+          "s3:ListBucket",
+          "s3:GetObjectVersion",
+          "s3:GetBucketVersioning",
+          "s3:GetBucketLocation"
         ]
         Resource = [
           aws_s3_bucket.dag.arn,
           "${aws_s3_bucket.dag.arn}/*"
         ]
+      },
+      {
+        Sid    = "S3AccountPublicAccessBlock"
+        Effect = "Allow"
+        Action = [
+          "s3:GetAccountPublicAccessBlock"
+        ]
+        Resource = "*"
       },
       {
         Sid    = "SecretsManagerAccess"
@@ -70,9 +84,44 @@ resource "aws_iam_policy" "mwaa_execution" {
         Action = [
           "logs:CreateLogStream",
           "logs:PutLogEvents",
-          "logs:CreateLogGroup"
+          "logs:CreateLogGroup",
+          "logs:DescribeLogGroups",
+          "logs:GetLogEvents",
+          "logs:GetLogRecord",
+          "logs:GetLogGroupFields",
+          "logs:GetQueryResults",
+          "logs:DescribeLogStreams"
         ]
-        Resource = "arn:${data.aws_partition.current.partition}:logs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:log-group:airflow/${var.project_name}-${var.environment}*"
+        Resource = "arn:${data.aws_partition.current.partition}:logs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:log-group:airflow-${var.project_name}-${var.environment}-*"
+      },
+      {
+        Sid    = "CloudWatchMetrics"
+        Effect = "Allow"
+        Action = [
+          "cloudwatch:PutMetricData"
+        ]
+        Resource = "*"
+      },
+      {
+        Sid    = "AirflowPublishMetrics"
+        Effect = "Allow"
+        Action = [
+          "airflow:PublishMetrics"
+        ]
+        Resource = "*"
+      },
+      {
+        Sid    = "SQSAccess"
+        Effect = "Allow"
+        Action = [
+          "sqs:ChangeMessageVisibility",
+          "sqs:DeleteMessage",
+          "sqs:GetQueueAttributes",
+          "sqs:GetQueueUrl",
+          "sqs:ReceiveMessage",
+          "sqs:SendMessage"
+        ]
+        Resource = "arn:${data.aws_partition.current.partition}:sqs:${var.aws_region}:*:airflow-celery-*"
       }
     ]
   })
