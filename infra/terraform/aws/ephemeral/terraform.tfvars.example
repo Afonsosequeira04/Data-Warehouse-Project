@@ -1,0 +1,29 @@
+# Example values for the ephemeral stack.
+# Copy to terraform.tfvars and fill in the required values.
+# NEVER commit terraform.tfvars (it's in .gitignore).
+
+# Required: unique suffix for globally unique names (e.g., random string or account ID)
+name_suffix = "9015f2"
+
+# AWS configuration
+aws_region  = "us-east-2"
+aws_profile = "dwh"
+
+# Project naming
+project_name = "cloud-data-platform"
+environment  = "dev"
+
+# VPC networking (defaults are usually fine)
+vpc_cidr             = "10.0.0.0/16"
+private_subnet_cidrs = ["10.0.1.0/24", "10.0.2.0/24"]
+public_subnet_cidrs  = ["10.0.101.0/24"]
+availability_zones   = ["us-east-2a", "us-east-2b"]
+
+# MWAA configuration
+mwaa_environment_class = "mw1.small"
+mwaa_min_workers       = 1
+mwaa_max_workers       = 1
+airflow_version        = "3.3.1"
+
+# Persistent stack references (must match persistent stack)
+state_bucket_name = "dwh-terraform-state"
