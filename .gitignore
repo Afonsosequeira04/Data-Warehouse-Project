@@ -72,4 +72,4 @@ __MACOSX/
 temp/
 
 # Terraform provider cache
-.terraform/providers/
+.terraform/providers/.terraform.lock.hcl
