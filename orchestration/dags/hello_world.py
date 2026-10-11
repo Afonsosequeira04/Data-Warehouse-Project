@@ -1,18 +1,17 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
-from airflow.sdk import DAG, task, Variable
 from airflow.configuration import conf
 from airflow.providers.amazon.aws.hooks.s3 import S3Hook
-
+from airflow.sdk import DAG, Variable, task
 
 with DAG(
     dag_id="hello_world",
-    description="Simple DAG to verify MWAA setup, Secrets Manager backend, and DAG bucket access",
+    description="Verify MWAA setup, Secrets Manager backend and DAG bucket access",
     schedule="@once",
-    start_date=datetime(2025, 1, 1),
+    start_date=datetime(2025, 1, 1, tzinfo=timezone.utc),
     catchup=False,
     is_paused_upon_creation=False,
     default_args={
@@ -24,48 +23,42 @@ with DAG(
 
     @task
     def read_variable_and_write_s3() -> dict:
-        """Read the world-bank variable from Secrets Manager backend and write test JSON to DAG bucket."""
-        # This proves the Secrets Manager backend works (variable name: cloud-data-platform/world-bank)
-        # Task MUST fail if the variable is missing - no default_var allowed.
+        """Read the world-bank variable via the Secrets Manager backend and
+        write a small JSON under test/hello_world/ in the DAG bucket."""
+        # Resolved as secret "cloud-data-platform/world-bank". No default:
+        # the task must fail if the secret is missing or has no value.
         world_bank_config = Variable.get("world-bank", deserialize_json=True)
 
-        # Verify the expected key exists (World Bank API base_url)
+        # Never put the secret content in an error message (it ends up in logs).
         if not isinstance(world_bank_config, dict) or "base_url" not in world_bank_config:
-            raise ValueError(
-                f"world-bank secret must be a JSON object with 'base_url' key, got: {world_bank_config}"
-            )
+            raise ValueError("world-bank secret must be a JSON object with a 'base_url' key")
 
-        # Get the DAG bucket name from Airflow configuration (set via Terraform-managed MWAA config)
         dag_bucket = conf.get("mwaa", "dag_bucket", fallback=None)
         if not dag_bucket:
             raise ValueError(
-                "DAG bucket name not found. Ensure MWAA airflow_configuration_options.mwaa.dag_bucket is set."
+                "mwaa.dag_bucket is not set; check airflow_configuration_options in "
+                "infra/terraform/aws/ephemeral/mwaa.tf"
             )
 
-        # Write a small test JSON under test/hello_world/ (never the raw bucket)
-        test_key = f"test/hello_world/run_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.json"
-        test_data = {
+        now = datetime.now(timezone.utc)
+        key = f"test/hello_world/run_{now.strftime('%Y%m%dT%H%M%SZ')}.json"
+        key_names = sorted(world_bank_config.keys())  # key names only, never values
+        payload = {
             "dag_id": "hello_world",
-            "execution_date": datetime.utcnow().isoformat(),
-            "world_bank_variable_found": True,
-            "world_bank_keys": list(world_bank_config.keys()),
-            "dag_bucket_used": dag_bucket,
+            "written_at": now.isoformat(),
+            "world_bank_keys": key_names,
+            "dag_bucket": dag_bucket,
             "status": "success",
         }
 
-        s3_hook = S3Hook(aws_conn_id="aws_default")
-        s3_hook.load_string(
-            string_data=json.dumps(test_data, indent=2),
-            key=test_key,
+        S3Hook(aws_conn_id="aws_default").load_string(
+            string_data=json.dumps(payload, indent=2),
+            key=key,
             bucket_name=dag_bucket,
             replace=True,
         )
 
-        return {
-            "bucket": dag_bucket,
-            "key": test_key,
-            "world_bank_variable_found": True,
-            "world_bank_keys": list(world_bank_config.keys()),
-        }
+        print(f"Wrote s3://{dag_bucket}/{key} (world-bank keys: {key_names})")
+        return {"bucket": dag_bucket, "key": key, "world_bank_keys": key_names}
 
     read_variable_and_write_s3()
