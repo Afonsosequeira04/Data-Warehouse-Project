@@ -40,16 +40,16 @@ resource "aws_iam_policy" "mwaa_execution" {
         ]
       },
       {
+        # MWAA validates the DAG bucket at environment creation (versioning,
+        # public access block, location), so it needs bucket-level read access.
         Sid    = "S3DagBucketAccess"
         Effect = "Allow"
         Action = [
-          "s3:GetObject",
+          "s3:GetObject*",
           "s3:PutObject",
           "s3:DeleteObject",
-          "s3:ListBucket",
-          "s3:GetObjectVersion",
-          "s3:GetBucketVersioning",
-          "s3:GetBucketLocation"
+          "s3:GetBucket*",
+          "s3:List*"
         ]
         Resource = [
           aws_s3_bucket.dag.arn,
@@ -85,7 +85,6 @@ resource "aws_iam_policy" "mwaa_execution" {
           "logs:CreateLogStream",
           "logs:PutLogEvents",
           "logs:CreateLogGroup",
-          "logs:DescribeLogGroups",
           "logs:GetLogEvents",
           "logs:GetLogRecord",
           "logs:GetLogGroupFields",
@@ -93,6 +92,15 @@ resource "aws_iam_policy" "mwaa_execution" {
           "logs:DescribeLogStreams"
         ]
         Resource = "arn:${data.aws_partition.current.partition}:logs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:log-group:airflow-${var.project_name}-${var.environment}-*"
+      },
+      {
+        # DescribeLogGroups does not work when restricted to a log group ARN pattern.
+        Sid    = "CloudWatchLogsDescribeGroups"
+        Effect = "Allow"
+        Action = [
+          "logs:DescribeLogGroups"
+        ]
+        Resource = "*"
       },
       {
         Sid    = "CloudWatchMetrics"
@@ -122,6 +130,23 @@ resource "aws_iam_policy" "mwaa_execution" {
           "sqs:SendMessage"
         ]
         Resource = "arn:${data.aws_partition.current.partition}:sqs:${var.aws_region}:*:airflow-celery-*"
+      },
+      {
+        # MWAA uses an AWS-owned key for its SQS queues; workers need KMS via SQS only.
+        Sid    = "KmsViaSqsForAwsOwnedKey"
+        Effect = "Allow"
+        Action = [
+          "kms:Decrypt",
+          "kms:DescribeKey",
+          "kms:GenerateDataKey*",
+          "kms:Encrypt"
+        ]
+        NotResource = "arn:${data.aws_partition.current.partition}:kms:*:${data.aws_caller_identity.current.account_id}:key/*"
+        Condition = {
+          StringLike = {
+            "kms:ViaService" = ["sqs.${var.aws_region}.amazonaws.com"]
+          }
+        }
       }
     ]
   })
