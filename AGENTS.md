@@ -14,9 +14,9 @@ over adding services just to make the architecture look larger.
 ## Current phase
 
 ```
-Current phase : P2 - Ephemeral MWAA
-Status        : in progress
-Last completed: P1 - Persistent foundation
+Current phase : P3 - API 1 ingestion
+Status        : not started
+Last completed: P2 - Ephemeral MWAA
 Next phase    : P3 - API 1 ingestion
 ```
 

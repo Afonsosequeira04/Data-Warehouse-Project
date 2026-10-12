@@ -1,0 +1,12 @@
+# Test requirements for DAG import test
+# Uses the same constraints as MWAA (Airflow 3.3.1, Python 3.12)
+--constraint https://raw.githubusercontent.com/apache/airflow/constraints-3.3.1/constraints-3.12.txt
+
+# Core Airflow for testing
+apache-airflow==3.3.1
+
+# Providers needed by hello_world DAG
+apache-airflow-providers-amazon==9.34.0
+
+# Test framework
+pytest==8.2.0

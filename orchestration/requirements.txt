@@ -1,0 +1,7 @@
+# MWAA Requirements for Airflow 3.3.1 with Python 3.12
+# Constraints file for Airflow 3.3.1 / Python 3.12
+# https://raw.githubusercontent.com/apache/airflow/constraints-3.3.1/constraints-3.12.txt
+--constraint https://raw.githubusercontent.com/apache/airflow/constraints-3.3.1/constraints-3.12.txt
+
+# Core Airflow providers (only what hello_world imports, pinned to constraints versions)
+apache-airflow-providers-amazon==9.34.0
