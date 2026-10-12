@@ -5,9 +5,10 @@ This runbook documents the exact commands and procedures to create, validate, us
 ## Prerequisites
 
 - AWS CLI configured with the `dwh` profile (or appropriate credentials)
-- Terraform >= 1.10.0 installed
-- GitHub CLI (`gh`) optional, for PR creation
-- Python 3.12 with a virtual environment for local DAG validation
+    - Terraform >= 1.10.0 installed
+    - GitHub CLI (`gh`) optional, for PR creation
+    - Python 3.12 with a virtual environment for local DAG validation
+    - Secret `cloud-data-platform/world-bank` with value `{"base_url":"https://api.worldbank.org/v2"}` exists in Secrets Manager (one-time manual step)
 
 ## Directory Structure
 
@@ -28,6 +29,7 @@ The persistent stack must be applied before the ephemeral stack. It provides:
 - Unity Catalog setup
 
 ```bash
+export AWS_PROFILE=dwh
 cd infra/terraform/aws/persistent
 terraform init -backend-config="bucket=dwh-terraform-state-9015f2"
 terraform plan -var="name_suffix=9015f2" -var="budget_notification_email=your-email@example.com"
@@ -59,6 +61,7 @@ deactivate
 Validate Terraform configuration:
 
 ```bash
+export AWS_PROFILE=dwh
 cd infra/terraform/aws/ephemeral
 terraform fmt -check
 terraform init -backend-config="bucket=dwh-terraform-state-9015f2"
@@ -75,7 +78,7 @@ Upload them before creating the environment:
 
 ```bash
 # Sync DAGs and requirements to the DAG bucket
-aws s3 sync orchestration/dags/ s3://dwh-mwaa-dags-9015f2/dags/ --profile dwh
+aws s3 sync orchestration/dags/ s3://dwh-mwaa-dags-9015f2/dags/ --profile dwh --exclude "__pycache__/*"
 aws s3 cp orchestration/requirements.txt s3://dwh-mwaa-dags-9015f2/requirements.txt --profile dwh
 
 # Verify upload
@@ -86,6 +89,7 @@ aws s3 ls s3://dwh-mwaa-dags-9015f2/requirements.txt --profile dwh
 ### 3. Create MWAA Environment (Apply Ephemeral Stack)
 
 ```bash
+export AWS_PROFILE=dwh
 cd infra/terraform/aws/ephemeral
 terraform apply -var="name_suffix=9015f2"
 ```
@@ -115,26 +119,27 @@ Wait for the apply to complete. Note the `mwaa_webserver_url` from the outputs.
 
 ### 6. Collect Evidence
 
-Capture the following for the phase evidence:
+Capture the following for the phase evidence (text only, no screenshots):
 
-- [ ] Screenshot of Airflow UI showing successful `hello_world` run (green)
-- [ ] Screenshot of task logs showing variable read and S3 write
-- [ ] CloudWatch Logs sample: filter `/aws/mwaa/cloud-data-platform-dev` for the run
+- [ ] CloudWatch Logs sample: filter `airflow-cloud-data-platform-dev-Task` for the run
 - [ ] S3 object verification: `aws s3 ls s3://dwh-mwaa-dags-9015f2/test/hello_world/ --profile dwh`
 - [ ] Terraform apply output (duration, resources created)
-- [ ] MWAA environment creation time (from console or timestamps)
+- [ ] MWAA environment creation time (from timestamps)
+
+All evidence goes in the single file `docs/evidence/P2-evidence.md` (text only).
 
 Record measured values:
-- **Terraform apply duration:** ___ minutes
-- **MWAA environment creation time (console):** ___ minutes
-- **DAG run duration:** ___ seconds
-- **Total window duration so far:** ___ minutes
+- **Terraform apply duration:** 35 minutes
+- **MWAA environment creation time (from timestamps):** 34m 47s
+- **DAG run duration:** < 1 minute
+- **Total window duration so far:** 72 minutes
 
 ### 7. Destroy MWAA Environment
 
 **IMPORTANT:** Destroy the ephemeral stack when done to stop billing. MWAA cannot be paused.
 
 ```bash
+export AWS_PROFILE=dwh
 cd infra/terraform/aws/ephemeral
 terraform destroy -var="name_suffix=9015f2"
 ```
@@ -159,10 +164,10 @@ aws ec2 describe-nat-gateways --filter "Name=tag:project,Values=cloud-data-platf
 aws ec2 describe-vpcs --filters "Name=tag:project,Values=cloud-data-platform" "Name=tag:stack,Values=ephemeral" --profile dwh --region us-east-2
 # Should show no VPCs
 
-# Verify CloudWatch Log Group still exists (it's in persistent IAM pattern but managed by ephemeral)
-# Note: The log group is created by the ephemeral stack and should be destroyed with it.
-# If it remains, delete manually:
-# aws logs delete-log-group --log-group-name /aws/mwaa/cloud-data-platform-dev --profile dwh --region us-east-2
+# Verify CloudWatch Log Groups (created by MWAA, not Terraform; they persist but have no cost without logs)
+# Log groups: airflow-cloud-data-platform-dev-{DAGProcessing,Scheduler,Task,WebServer,Worker}
+# If cleanup needed (rare), delete manually:
+# aws logs delete-log-group --log-group-name airflow-cloud-data-platform-dev-Task --profile dwh --region us-east-2
 
 # Verify persistent stack is UNTOUCHED
 aws s3 ls s3://dwh-raw-data-9015f2/ --profile dwh          # Raw bucket exists
@@ -174,9 +179,9 @@ aws budgets describe-budgets --profile dwh --region us-east-2  # Budget exists
 Check AWS Cost Explorer or Billing console to confirm no unexpected charges.
 
 Record measured values:
-- **Terraform destroy duration:** ___ minutes
-- **Total billable window (create + run + destroy):** ___ minutes
-- **Estimated total cost:** $___
+- **Terraform destroy duration:** 27 minutes
+- **Total billable window (create + run + destroy):** 73 minutes
+- **Estimated total cost:** $0.65
 
 ## Assumptions Documented from ADR-004
 
@@ -213,18 +218,17 @@ Record measured values:
 
 **Example 1-hour window:** ~$0.60
 **Example 2-hour window (create + run + destroy):** ~$1.20 + creation/destruction time
+**Measured P2 window (73 min):** ~$0.65
 
 Always check current AWS pricing before running.
 
 ## Evidence Checklist for P2
 
-Store evidence in `docs/evidence/p2/`:
+All evidence goes in the single file `docs/evidence/P2-evidence.md` (text only, no screenshots):
 
-- [ ] `terraform_apply_output.txt` — Full apply output
-- [ ] `airflow_ui_success.png` — Screenshot of successful hello_world run
-- [ ] `task_logs_variable_read.png` — Screenshot showing world-bank variable read
-- [ ] `cloudwatch_logs_sample.txt` — Filtered log sample
-- [ ] `s3_test_object.json` — Downloaded test JSON from DAG bucket
-- [ ] `terraform_destroy_output.txt` — Full destroy output
-- [ ] `post_destroy_verification.txt` — Output of verification commands
-- [ ] `measured_times_costs.md` — This runbook with measured values filled in
+- [ ] Terraform apply output (duration, resources created)
+- [ ] S3 object verification (`aws s3 ls` and `aws s3 cp` output)
+- [ ] CloudWatch Logs sample (filtered for "Wrote s3://")
+- [ ] Terraform destroy output (duration, resources destroyed)
+- [ ] Post-destroy verification commands output
+- [ ] Measured times and estimated cost (filled in above)
