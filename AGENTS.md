@@ -119,7 +119,7 @@ Before modifying an area, inspect the actual files and verify its current state.
 At the time of writing the repository contains documentation, Terraform (AWS persistent + Databricks stacks),
 .gitignore, and dependency lock files. No dbt project, no ingestion/orchestration code yet. Verify this rather than trusting this paragraph.
 
-The datasheet and README previously contained placeholders such as `<API 1>`, `<API 2>`, and `<SaaS/DB>`. These have been replaced with the selected sources: World Bank Indicators, FRED Economic Series, and Amazon RDS PostgreSQL via Fivetran. Never invent that placeholders have been selected; keep explicit until a concrete source decision is recorded in `docs/data-sources.md` with status `Selected`.
+The datasheet and README previously contained placeholders such as `<API 1>`, `<API 2>`, and `<SaaS/DB>`. These have been replaced with the selected sources: World Bank Indicators, FRED Economic Series, and Supabase PostgreSQL via Fivetran. Never invent that placeholders have been selected; keep explicit until a concrete source decision is recorded in `docs/data-sources.md` with status `Selected`.
 
 ## Decisions already taken
 
@@ -138,11 +138,11 @@ D-005 and D-006 refine the datasheet: the datasheet's "shut resources down when 
 by destroying the ephemeral stack, because MWAA cannot be paused. The datasheet's flat `infra/terraform/aws/`
 becomes `aws/persistent/` and `aws/ephemeral/`.
 
-Also resolved (ADR-005): Amazon RDS PostgreSQL as the operational source for Fivetran.
+Also resolved (ADR-007): Supabase PostgreSQL as the operational source for Fivetran.
 
 ## Open decisions (ADRs)
 
-These are resolved. All ADRs have been accepted by Afonso.
+These are resolved. All ADRs have been accepted by Afonso, except ADR-008 which is Proposed.
 
 | ADR | Question | Status |
 | --- | --- | --- |
@@ -150,10 +150,12 @@ These are resolved. All ADRs have been accepted by Afonso.
 | ADR-002 | Where is the quarantine boundary: file/schema level at ingestion, row level in dbt, or both? | Accepted |
 | ADR-003 | Where does dbt run in the daily DAG (inside MWAA, external runner, Databricks job)? | Accepted |
 | ADR-004 | MWAA operating model: creation/destruction workflow, what state must survive a destroy, networking cost options, how DAGs are validated before spending environment time. | Accepted |
-| ADR-005 | Amazon RDS PostgreSQL as the operational source for Fivetran | Accepted |
+| ADR-005 | Amazon RDS PostgreSQL as the operational source for Fivetran | Superseded by ADR-007 |
+| ADR-006 | Unity Catalog grants in dev with single principal | Accepted |
+| ADR-007 | Supabase PostgreSQL as the operational source for Fivetran | Accepted |
+| ADR-008 | Optional streaming ingestion path (P8b) | Proposed |
 
-Also resolved, tracked in `docs/data-sources.md` and `docs/business-questions.md`: the concrete API 1, API 2 and
-SaaS/DB sources, and the business questions the Gold layer must answer.
+Also resolved (ADR-007): Supabase PostgreSQL as the operational source for Fivetran. Tracked in `docs/data-sources.md` and `docs/business-questions.md`: the concrete API 1, API 2 and SaaS/DB sources, and the business questions the Gold layer must answer.
 
 ## Architecture
 
@@ -164,7 +166,7 @@ World Bank API ─┐
                 ├─> MWAA / Airflow ─> S3 immutable raw ─> Databricks Bronze
 FRED API ───────┘                                      └─> Quarantine for rejected records (boundary: ADR-002)
 
-Amazon RDS PostgreSQL ─> Fivetran ─> Databricks (schema: raw_fivetran)
+Supabase PostgreSQL ─> Fivetran ─> Databricks (schema: raw_fivetran)
                                       │
                                       └─> dbt staging (Silver) ─> dbt marts (Gold) ─> AI/BI
 
@@ -199,7 +201,8 @@ Do not assume `read_files`, streaming tables, or dbt does it.
 - Do not introduce AWS services that are outside the documented scope unless a concrete requirement justifies them.
 - Prefer S3, IAM, MWAA, VPC/networking, CloudWatch Logs, Secrets Manager, and AWS Budgets as the essential AWS footprint.
 - KMS, SNS, EventBridge, and CloudTrail are optional only when there is a demonstrated need.
-- Redshift, Glue, EMR, Athena, Kinesis, Lambda, DynamoDB, ECR, ECS, and RDS are out of scope for general workloads, except for the approved operational PostgreSQL source defined by ADR-005.
+- Redshift, Glue, EMR, Athena, Kinesis, Lambda, DynamoDB, ECR, ECS, and RDS are out of scope for general workloads.
+  Kinesis stays out of scope until ADR-008 is Accepted.
   (Consequence: Terraform state locking must not use DynamoDB. See "Terraform conventions".)
 - Secrets and credentials must never be committed to Git. Use AWS Secrets Manager or the appropriate runtime secret mechanism.
 - GitHub authentication to AWS should use OIDC. Do not add long-lived AWS access keys to GitHub Actions.
@@ -230,7 +233,8 @@ cloud-data-platform/
 │   └── terraform/
 │       ├── aws/
 │       │   ├── persistent/     # S3 raw + DAG buckets, IAM, Secrets Manager, Budgets
-│       │   └── ephemeral/      # VPC/NAT, MWAA, CloudWatch log config for MWAA
+│       │   ├── ephemeral/      # VPC/NAT, MWAA, CloudWatch log config for MWAA
+│       │   └── streaming/      # planned, P8b, not created (Kinesis, ADR-008 Proposed)
 │       └── databricks/
 ├── docs/
 │   ├── decisions/              # ADRs
@@ -421,7 +425,7 @@ Use the documented structure:
 <catalog>.<schema>.<table>
 ```
 
-The intended schema groups are: `bronze`, `silver`, `gold`, `quarantine`, `snapshots`.
+The intended schema groups are: `bronze`, `silver`, `gold`, `quarantine`, `snapshots`, `raw_fivetran`.
 
 - Use permissions that follow least privilege: pipeline identities need write access where necessary,
   BI consumers need read access, and developers receive only the access needed for development.

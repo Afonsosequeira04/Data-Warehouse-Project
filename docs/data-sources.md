@@ -50,14 +50,14 @@ Status values: `Not selected` | `Shortlisted` | `Selected` | `Ready`
 
 ---
 
-## SaaS / Database Source — Amazon RDS PostgreSQL via Fivetran
+## SaaS / Database Source — Supabase PostgreSQL via Fivetran
 
 | Property | Value |
 |----------|-------|
 | **Source Name** | `macro_watchlist_db` |
 | **Type** | Operational PostgreSQL database |
-| **Owner/Provider** | Amazon Web Services |
-| **Database** | Amazon RDS for PostgreSQL |
+| **Owner/Provider** | Supabase |
+| **Database** | Supabase PostgreSQL (via session pooler) |
 | **Fivetran Connector** | PostgreSQL |
 | **Authentication** | Database credentials (provided later through approved secret mechanism) |
 | **Sync Frequency** | Daily (or on-demand via Airflow trigger) |
@@ -65,7 +65,7 @@ Status values: `Not selected` | `Shortlisted` | `Selected` | `Ready`
 | **Data Grain** | One row per entity (country, indicator, alert rule) |
 | **Destination** | Databricks: `dwh_dev.raw_fivetran.<table>` (Fivetran destination schema prefix to be confirmed in P8) |
 | **Status** | Selected |
-| **Notes** | Fivetran is optional (D-001). Confirm Databricks destination is available on the Fivetran plan. If not available or cost-prohibitive, mark P8 as formally skipped with reason. This source is NOT a copy of World Bank or FRED data. It is a small operational/master-data source controlling the macro watchlist and alert configuration. Tables: `watchlist_country`, `watchlist_indicator`, `alert_rule`. See ADR-005 for details. Security: TLS, dedicated read-only Fivetran database user, restricted network access, no 0.0.0.0/0 exposure, no credentials in Git, future credentials stored through approved secret mechanism. |
+| **Notes** | Fivetran is optional (D-001). Confirm Databricks destination is available on the Fivetran plan. If not available or cost-prohibitive, mark P8 as formally skipped with reason. This source is NOT a copy of World Bank or FRED data. It is a small operational/master-data source controlling the macro watchlist and alert configuration. Tables: `watchlist_country`, `watchlist_indicator`, `alert_rule`. See ADR-007 for details. Security: TLS, dedicated read-only Fivetran database user, no credentials in Git, future credentials stored through approved secret mechanism. Supabase project created manually, outside AWS Terraform; AWS persistent stack only holds the secret container. Session pooler connection, Query-Based sync with xmin cursor (exact cursor to verify in P8). |
 
 ---
 
@@ -88,3 +88,24 @@ Status values: `Not selected` | `Shortlisted` | `Selected` | `Ready`
 | 2026-09-29 | World Bank Indicators | Not selected | Selected | Afonso | Approved for BQ-001, BQ-003 |
 | 2026-09-29 | FRED Economic Series | Not selected | Selected | Afonso | Approved for BQ-002 |
 | 2026-09-29 | Amazon RDS PostgreSQL (macro_watchlist_db) | Not selected | Selected | Afonso | Approved for BQ-001, BQ-003; Fivetran path |
+| 2026-10-13 | Amazon RDS PostgreSQL -> Supabase PostgreSQL (macro_watchlist_db) | Selected (RDS) | Selected (Supabase) | Afonso | RDS -> Supabase, ADR-007 supersedes ADR-005 |
+
+---
+
+## Public Streaming Feed (Optional, Proposed)
+
+| Property | Value |
+|----------|-------|
+| **Source Name** | `stream_<source>` (to be determined) |
+| **Type** | Public streaming feed (WebSocket/SSE) |
+| **Owner/Provider** | To be determined |
+| **Authentication** | None or simple API key (to be determined) |
+| **Fivetran Connector** | N/A (direct ingestion via Kinesis) |
+| **Sync Frequency** | Real-time (time-boxed producer window) |
+| **Expected Volume (per window)** | To be determined |
+| **Data Grain** | To be determined |
+| **Destination** | Bronze: `dwh_dev.bronze.stream_<source>`; Silver/Gold via dbt incremental |
+| **Status** | Not selected (ADR-008 Proposed) |
+| **Notes** | Optional streaming path (P8b). Blocked until ADR-008 is Accepted. Open questions: streaming source, BQ-004, Databricks compute (serverless vs job cluster, vs "no cluster" constraint), checkpoint location (raw external location is read-only), dbt runner for streaming tables, Databricks plan type (Free Edition), cost. Kinesis stays out of scope until ADR-008 is Accepted. Pricing/limits/features to verify in P8. |
+
+---

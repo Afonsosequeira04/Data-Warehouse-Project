@@ -42,7 +42,7 @@ country + indicator + year
 
 **Sources:**
 
-World Bank + macro_watchlist_db
+World Bank + macro_watchlist_db (Supabase PostgreSQL via Fivetran)
 
 **Status:**
 
@@ -128,7 +128,7 @@ latest available observation
 
 **Sources:**
 
-World Bank + macro_watchlist_db
+World Bank + macro_watchlist_db (Supabase PostgreSQL via Fivetran)
 
 **Status:**
 
@@ -156,9 +156,9 @@ These questions are answered by the Data Quality dashboard regardless of busines
 
 | Business Question | Primary Source | Supporting Sources | Gold Models Needed |
 |-------------------|----------------|--------------------|-------------------|
-| BQ-001 | World Bank | macro_watchlist_db | dim_country, dim_indicator, fact_macro_indicator |
+| BQ-001 | World Bank | macro_watchlist_db (Supabase PostgreSQL via Fivetran) | dim_country, dim_indicator, fact_macro_indicator |
 | BQ-002 | FRED | none | dim_fred_series, fact_fred_observation |
-| BQ-003 | World Bank | macro_watchlist_db | dim_country, dim_indicator, dim_alert_rule, fact_macro_indicator, fact_alert_evaluation |
+| BQ-003 | World Bank | macro_watchlist_db (Supabase PostgreSQL via Fivetran) | dim_country, dim_indicator, dim_alert_rule, fact_macro_indicator, fact_alert_evaluation |
 
 ---
 
@@ -167,4 +167,4 @@ These questions are answered by the Data Quality dashboard regardless of busines
 - Do not invent business questions that are not already specified by project documentation
 - Keep the list small (3 core questions) for portfolio scope
 - Each question should be answerable by a single dashboard tile or a small set of related tiles
-- The technical datasheet and README now reflect the selected sources: World Bank, FRED, Amazon RDS PostgreSQL via Fivetran
+- The technical datasheet and README now reflect the selected sources: World Bank, FRED, Supabase PostgreSQL via Fivetran
