@@ -1,6 +1,6 @@
 # Cloud Data Platform
 
-End-to-end, 100% cloud data platform built on **real data**: ingestion from public APIs (World Bank, FRED) and an operational database (Amazon RDS PostgreSQL via Fivetran), a medallion architecture on Databricks, dbt transformations, Unity Catalog governance and infrastructure as code.
+End-to-end, 100% cloud data platform built on **real data**: ingestion from public APIs (World Bank, FRED) and an operational database (Supabase PostgreSQL via Fivetran), a medallion architecture on Databricks, dbt transformations, Unity Catalog governance and infrastructure as code.
 
 > The sources are real; the pipeline that ingests, transforms and governs them is real too.
 
@@ -18,7 +18,7 @@ Notion Plan - https://app.notion.com/p/NOTION_PROJECT_PLAN-a0545b08c0b682c9adac8
 |---|---|
 | Cloud / Storage | AWS, S3 |
 | Orchestration | Amazon MWAA (Apache Airflow) |
-| Ingestion | Python (APIs), Fivetran (RDS PostgreSQL) |
+| Ingestion | Python (APIs), Fivetran (Supabase PostgreSQL) |
 | Lakehouse | Databricks, Delta Lake |
 | Governance | Unity Catalog |
 | Transformation | dbt-core, dbt-databricks |
@@ -33,7 +33,8 @@ Notion Plan - https://app.notion.com/p/NOTION_PROJECT_PLAN-a0545b08c0b682c9adac8
 |---|---|---|
 | **World Bank Indicators** | Public REST API | Airflow → S3 → Bronze |
 | **FRED Economic Series** | Public REST API (API key) | Airflow → S3 → Bronze |
-| **Amazon RDS PostgreSQL** | Fivetran connector (PostgreSQL) | Fivetran → Databricks (schema: raw_fivetran) |
+| **Supabase PostgreSQL** | Fivetran connector (PostgreSQL) | Fivetran → Databricks (schema: raw_fivetran) |
+| **Public streaming feed** | WebSocket/SSE (optional, proposed) | Local producer → Kinesis → Databricks Streaming (ADR-008) |
 
 ## Data Layers
 
@@ -91,9 +92,10 @@ Credentials and API keys live in AWS Secrets Manager, never in the repository.
 - [ ] FRED ingestion → S3 → Bronze
 - [ ] dbt models (staging, marts, tests)
 - [ ] MWAA and the `daily_pipeline` DAG
-- [ ] Fivetran (RDS PostgreSQL source)
+- [ ] Fivetran (Supabase PostgreSQL source)
 - [ ] Full Terraform and GitHub Actions
 - [ ] AI/BI dashboards (business and data quality)
+- [ ] Optional streaming path (P8b, proposed)
 
 ## Costs
 

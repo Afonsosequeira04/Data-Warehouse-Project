@@ -204,10 +204,10 @@ aws secretsmanager put-secret-value \
   --secret-string '{"base_url":"https://api.stlouisfed.org/fred","api_key":"<YOUR_FRED_API_KEY>"}' \
   --profile dwh
 
-# Fivetran RDS connection (for P8)
+# Fivetran Supabase connection (for P8)
 aws secretsmanager put-secret-value \
-  --secret-id cloud-data-platform/fivetran-rds \
-  --secret-string '{"host":"<RDS_ENDPOINT>","port":5432,"database":"macro_watchlist_db","username":"<USER>","password":"<PASSWORD>"}' \
+  --secret-id cloud-data-platform/macro-watchlist-db \
+  --secret-string '{"host":"<SUPABASE_SESSION_POOLER_HOST>","port":5432,"database":"macro_watchlist_db","schema":"macro_watchlist","username":"<FIVETRAN_USER>","password":"<PASSWORD>"}' \
   --profile dwh
 
 # Databricks connection (for CI/CD)

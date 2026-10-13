@@ -43,9 +43,9 @@ output "fred_secret_arn" {
   value       = aws_secretsmanager_secret.fred.arn
 }
 
-output "fivetran_rds_secret_arn" {
-  description = "ARN of the Fivetran RDS secret"
-  value       = aws_secretsmanager_secret.fivetran_rds.arn
+output "macro_watchlist_db_secret_arn" {
+  description = "ARN of the Supabase macro_watchlist_db secret"
+  value       = aws_secretsmanager_secret.macro_watchlist_db.arn
 }
 
 output "databricks_secret_arn" {

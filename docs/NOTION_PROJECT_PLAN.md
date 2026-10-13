@@ -30,7 +30,8 @@ See `AGENTS.md` (D-001 to D-006) for the full list.
 | P5 | dbt Silver + Gold | Models, tests, snapshots |
 | P6 | Data quality + quarantine | Rejected records visible and explained |
 | P7 | daily_pipeline | Full DAG running in an MWAA window |
-| P8 | Fivetran ingestion path | Managed ingestion path (RDS PostgreSQL -> Fivetran -> Databricks) |
+| P8 | Fivetran ingestion path | Managed ingestion path (Supabase PostgreSQL -> Fivetran -> Databricks) |
+| P8b | Streaming path (optional, proposed) | Real-time ingestion (public feed -> Kinesis -> Databricks Streaming) — blocked until ADR-008 Accepted |
 | P9 | CI/CD with OIDC | PR checks and merge-to-main deployment (persistent stack only) |
 | P10 | AI/BI dashboards | Business and data-quality dashboards |
 | P11 | Hardening | Security, cost, idempotency, docs, evidence |
@@ -137,11 +138,11 @@ the current phase in `AGENTS.md`. Mirror these into Notion, never the other way 
 - [x] Accept or amend ADR-002 (quarantine boundary) — **Accepted: Hybrid (ingestion structural, dbt semantic)**
 - [x] Accept or amend ADR-003 (where dbt runs) — **Accepted: dbt from MWAA execution context against SQL Warehouse**
 - [x] Accept or amend ADR-004 (MWAA ephemeral operating model) — **Accepted: GitHub Actions create/destroy, private subnets + NAT**
-- [x] Accept ADR-005 (RDS PostgreSQL operational source for Fivetran) — **Accepted**
+- [x] Accept ADR-005 (RDS PostgreSQL operational source for Fivetran) — **Accepted (superseded by ADR-007 on 2026-10-13)**
 - [x] Define business questions the Gold layer and dashboard must answer, **before** choosing APIs — **BQ-001, BQ-002, BQ-003 Approved**
 - [x] Shortlist and choose **API 1** — **World Bank Indicators API** (pagination, no auth)
 - [x] Shortlist and choose **API 2** — **FRED Economic Series API** (API key auth, limit/offset pagination)
-- [x] Choose the **SaaS/DB source** for Fivetran — **Amazon RDS PostgreSQL** (`macro_watchlist_db`)
+- [x] Choose the **SaaS/DB source** for Fivetran — **Amazon RDS PostgreSQL** (`macro_watchlist_db`) **(superseded by ADR-007 on 2026-10-13: now Supabase PostgreSQL)**
 - [x] Record each source in `docs/data-sources.md` and in the Data Sources database.
 - [x] Define a rough data grain for each source.
 - [x] Define target catalog and schemas in Unity Catalog — **Catalog: `dwh_dev`; Schemas: `bronze`, `silver`, `gold`, `quarantine`, `snapshots`, `raw_fivetran` (Fivetran destination schema prefix to be confirmed in P8)**
@@ -156,8 +157,8 @@ the current phase in `AGENTS.md`. Mirror these into Notion, never the other way 
 
 ### Definition of Done
 
-- ADR-001 to ADR-005 are `Accepted`.
-- API 1 (World Bank Indicators), API 2 (FRED), and SaaS/DB (Amazon RDS PostgreSQL) are no longer placeholders.
+- ADR-001 to ADR-005 are `Accepted` (ADR-005 superseded by ADR-007).
+- API 1 (World Bank Indicators), API 2 (FRED), and SaaS/DB (Supabase PostgreSQL) are no longer placeholders.
 - Data sources have expected schemas/grains documented in `docs/data-sources.md`.
 - The Gold/dashboard questions (BQ-001, BQ-002, BQ-003) are defined and the chosen sources can answer them.
 - Cost guardrails exist (AWS Budget $10/month with alerts at 50%, 80%, 100% actual and 100% forecasted).
@@ -187,7 +188,7 @@ the current phase in `AGENTS.md`. Mirror these into Notion, never the other way 
 - [x] Resource tagging convention for cost attribution.
 - [x] Validate that no credentials are stored in Git.
 
-**Note:** The approved RDS PostgreSQL source (`macro_watchlist_db`) is a later implementation task. When implemented, its Terraform representation should be added to the persistent stack. This is not part of P1 scope.
+**Note:** The approved Supabase PostgreSQL source (`macro_watchlist_db`) is a manual prerequisite (create project, schema, tables, read-only user). The AWS persistent stack only holds the secret container (`cloud-data-platform/macro-watchlist-db`). No RDS resource is created in the persistent stack. (Supersedes the previous RDS note from ADR-005, superseded by ADR-007 on 2026-10-13)
 
 ### Databricks / Unity Catalog tasks
 
@@ -410,7 +411,7 @@ and the environment can be destroyed and rebuilt without losing the ability to r
 **Goal:** demonstrate a managed database ingestion strategy using:
 
 ```
-Amazon RDS PostgreSQL
+Supabase PostgreSQL
 -> Fivetran
 -> Databricks (schema: raw_fivetran, prefix to be confirmed in P8)
 ```
@@ -419,13 +420,15 @@ Fivetran is the intended second ingestion strategy, but can only be formally ski
 
 ### Tasks
 
-- [ ] Create/prepare the RDS PostgreSQL source (`macro_watchlist_db`) in the persistent stack.
+- [ ] Create the Supabase project and schema `macro_watchlist` manually (outside AWS Terraform).
 - [ ] Seed `macro_watchlist_db` with `watchlist_country`, `watchlist_indicator`, `alert_rule` tables.
-- [ ] Configure the Fivetran PostgreSQL connector.
+- [ ] Create a dedicated read-only Fivetran database user in Supabase.
+- [ ] Store credentials in the `cloud-data-platform/macro-watchlist-db` secret in AWS Secrets Manager.
+- [ ] Configure the Fivetran PostgreSQL connector via the Supabase session pooler.
 - [ ] Configure the Databricks destination (verify Fivetran plan supports it).
 - [ ] Define `raw_fivetran` convention: `dwh_dev.raw_fivetran.<table>` (Fivetran destination schema prefix to be confirmed in P8; Unity Catalog uses three-level naming: catalog.schema.table).
 - [ ] Validate initial synchronization.
-- [ ] Validate incremental synchronization (Query-Based using `xmin`).
+- [ ] Validate incremental synchronization (Query-Based using `xmin`, exact cursor to verify in P8 via session pooler).
 - [ ] Integrate trigger/wait logic with Airflow.
 - [ ] Add downstream dbt staging for the ingested data.
 - [ ] Verify core pipeline remains functional if Fivetran is disabled.
@@ -434,7 +437,36 @@ Fivetran is the intended second ingestion strategy, but can only be formally ski
 
 Fivetran demonstrates a managed ingestion path while the core AWS + Databricks + dbt pipeline remains independent.
 
-Because RDS is a persistent resource, note that its later Terraform implementation should use the project's persistent infrastructure strategy, while the source-specific integration work belongs to P8.
+The Supabase project is a manual prerequisite; the AWS persistent stack only holds the secret container.
+
+---
+
+# 9b. P8b - Streaming path (optional, proposed)
+
+**Goal:** demonstrate an optional real-time ingestion path (blocked until ADR-008 is Accepted).
+
+```
+Public streaming feed (WebSocket/SSE)
+-> Local time-boxed producer (reconnect, validation, PutRecords)
+-> Kinesis Data Streams (1 shard, 24h retention; ephemeral stack, aws/streaming)
+-> Databricks streaming job (Structured Streaming)
+-> bronze.stream_<source>
+-> dbt incremental Silver -> Gold
+```
+
+Invalid messages go to S3 raw bucket prefix `quarantine/stream/<source>/`. Checkpoints in a non-raw location (Unity Catalog managed storage or separate checkpoint bucket). Streaming freshness shown in the data-quality dashboard.
+
+### Open Questions (blocking Acceptance of ADR-008)
+
+- Streaming source: which public WebSocket/SSE feed? (Free, sustainable, meaningful data)
+- BQ-004: What business question would this answer?
+- Databricks compute for the streaming job: serverless vs job cluster, versus the "no cluster" constraints of ADR-001/ADR-003
+- Checkpoint location (the raw external location is read-only)
+- dbt runner for streaming tables
+- Databricks plan type (workspace is Free Edition)
+- Cost per window (Kinesis + Databricks job cluster)
+
+No implementation may start until ADR-008 is Accepted by Afonso.
 
 ---
 
@@ -626,7 +658,7 @@ Start here, in this order:
 3. Run the bootstrap prompt in OpenCode on branch `chore/p0-bootstrap`. Review the PR and merge.
 4. Answer the ADR questions and accept ADR-001 to ADR-005 (all now Accepted).
 5. Write the business questions (BQ-001, BQ-002, BQ-003 now Approved), then select sources.
-6. Fill `docs/data-sources.md` and the Notion databases (World Bank, FRED, RDS PostgreSQL now Selected).
+6. Fill `docs/data-sources.md` and the Notion databases (World Bank, FRED, Supabase PostgreSQL now Selected).
 7. When the P0 Definition of Done is met, update "Current phase" and move to P1.
 8. Do not start MWAA, Fivetran, or CI/CD before the data contracts for the first API are understood.
 

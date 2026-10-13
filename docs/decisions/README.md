@@ -10,8 +10,10 @@ This directory contains Architecture Decision Records for the Cloud Data Platfor
 | [ADR-002](ADR-002-quarantine-boundary.md) | Quarantine boundary: file/schema vs row level | Accepted |
 | [ADR-003](ADR-003-dbt-runner.md) | Where dbt runs in the daily DAG | Accepted |
 | [ADR-004](ADR-004-mwaa-operating-model.md) | MWAA ephemeral operating model | Accepted |
-| [ADR-005](ADR-005-rds-operational-source.md) | Amazon RDS PostgreSQL as the operational source for Fivetran | Accepted |
+| [ADR-005](ADR-005-rds-operational-source.md) | Amazon RDS PostgreSQL as the operational source for Fivetran | Superseded by ADR-007 |
 | [ADR-006](ADR-006-unity-catalog-grants-dev.md) | Unity Catalog grants in dev with single principal | Accepted |
+| [ADR-007](ADR-007-supabase-operational-source.md) | Supabase PostgreSQL as the operational source for Fivetran | Accepted |
+| [ADR-008](ADR-008-streaming-ingestion-path.md) | Optional streaming ingestion path (P8b) | Proposed |
 
 ## ADR Lifecycle
 

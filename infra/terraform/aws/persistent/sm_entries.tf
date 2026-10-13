@@ -10,9 +10,9 @@ resource "aws_secretsmanager_secret" "fred" {
   tags        = var.tags
 }
 
-resource "aws_secretsmanager_secret" "fivetran_rds" {
-  name        = "${var.project_name}/fivetran-rds"
-  description = "Fivetran RDS PostgreSQL connection details"
+resource "aws_secretsmanager_secret" "macro_watchlist_db" {
+  name        = "${var.project_name}/macro-watchlist-db"
+  description = "Supabase PostgreSQL (macro_watchlist) connection details for Fivetran"
   tags        = var.tags
 }
 
