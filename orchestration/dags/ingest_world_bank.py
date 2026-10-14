@@ -19,7 +19,9 @@ from airflow.sdk import DAG, Variable, task
 # Import shared Databricks SQL utilities
 from ingestion.databricks_sql import (
     execute_sql_batch,
+    execute_statement,
     normalize_host,
+    parse_verification_row,
     render_sql_template,
     split_sql_statements,
 )
@@ -250,7 +252,7 @@ with DAG(
 
         # Execute each statement via Databricks Statement Execution API
         results = execute_sql_batch(
-            host=normalize_host(fetch_result.get("databricks_host", "")) or normalize_host(host),
+            host=normalize_host(host),
             token=token,
             warehouse_id=warehouse_id,
             statements=statements,
@@ -301,12 +303,6 @@ with DAG(
         logger.info(f"Verifying Bronze load for batch {batch_id}")
 
         # Use INLINE disposition for small verification results
-        from ingestion.databricks_sql import (
-            execute_statement,
-            normalize_host,
-            parse_verification_row,
-        )
-
         result = execute_statement(
             host=normalize_host(host),
             token=token,

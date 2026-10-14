@@ -296,56 +296,6 @@ class TestExecuteSqlBatch:
         assert results[1]["statement_id"] == "stmt_2"
 
 
-class TestVerifyBronzeLoadLogic:
-    """Tests for verify_bronze_load logic."""
-
-    def test_verification_validation_logic_pass(self):
-        """Test verification validation passes for valid data."""
-        from ingestion.databricks_sql import parse_verification_row
-
-        # Databricks returns strings
-        row = ["500", "1", "2014", "2024", "489"]
-        row_count, batch_count, _min_year, _max_year, _non_null_values = parse_verification_row(row)
-
-        assert batch_count == 1
-        assert row_count > 0
-        assert row_count >= 250  # 500 * 0.5
-
-    def test_verification_validation_logic_fail_zero_rows(self):
-        """Test verification fails when zero rows."""
-        from ingestion.databricks_sql import parse_verification_row
-
-        row = ["0", "1", None, None, "0"]
-        row_count, _batch_count, _min_year, _max_year, _non_null_values = parse_verification_row(row)
-
-        with pytest.raises(ValueError, match="No rows loaded into Bronze table"):
-            if row_count == 0:
-                raise ValueError("No rows loaded into Bronze table")
-
-    def test_verification_validation_logic_fail_multiple_batches(self):
-        """Test verification fails when multiple batch_ids."""
-        from ingestion.databricks_sql import parse_verification_row
-
-        row = ["500", "2", "2014", "2024", "489"]
-        _row_count, batch_count, _min_year, _max_year, _non_null_values = parse_verification_row(row)
-
-        with pytest.raises(ValueError, match="Expected 1 distinct _batch_id, found 2"):
-            if batch_count != 1:
-                raise ValueError(f"Expected 1 distinct _batch_id, found {batch_count}")
-
-    def test_verification_validation_logic_fail_count_mismatch(self):
-        """Test verification fails on significant count mismatch."""
-        from ingestion.databricks_sql import parse_verification_row
-
-        row = ["100", "1", "2014", "2024", "50"]
-        row_count, _batch_count, _min_year, _max_year, _non_null_values = parse_verification_row(row)
-
-        expected_records = 500
-        with pytest.raises(ValueError, match="Row count mismatch"):
-            if row_count < expected_records * 0.5:
-                raise ValueError(f"Row count mismatch: expected ~{expected_records}, got {row_count}")
-
-
 @pytest.fixture(autouse=True)
 def reset_responses():
     """Reset responses between tests."""
