@@ -6,7 +6,7 @@ import json
 import logging
 import uuid
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 import boto3
@@ -32,7 +32,7 @@ class WriteResult:
     key: str
     size_bytes: int
     etag: str
-    written_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    written_at: datetime = field(default_factory=lambda: datetime.now(UTC))
 
 
 class S3Writer:
@@ -88,7 +88,7 @@ class S3Writer:
             "page": page,
             "batch_id": batch_id,
             "ingest_date": ingest_date,
-            "ingested_at": datetime.now(timezone.utc).isoformat(),
+            "ingested_at": datetime.now(UTC).isoformat(),
             "record_count": len(data),
             "data": data,
         }
@@ -160,7 +160,7 @@ class S3Writer:
             "page": page,
             "batch_id": batch_id,
             "ingest_date": ingest_date,
-            "rejected_at": datetime.now(timezone.utc).isoformat(),
+            "rejected_at": datetime.now(UTC).isoformat(),
             "error_type": error_type,
             "error_message": error_message,
             "raw_data": raw_data,
@@ -203,9 +203,9 @@ class S3Writer:
 
 def generate_batch_id() -> str:
     """Generate a unique batch identifier."""
-    return f"wb_{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}_{uuid.uuid4().hex[:8]}"
+    return f"wb_{datetime.now(UTC).strftime('%Y%m%dT%H%M%SZ')}_{uuid.uuid4().hex[:8]}"
 
 
 def get_ingest_date() -> str:
     """Get the current ingestion date in YYYY-MM-DD format."""
-    return datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    return datetime.now(UTC).strftime("%Y-%m-%d")

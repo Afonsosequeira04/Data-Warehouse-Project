@@ -71,9 +71,12 @@ terraform plan -var="name_suffix=9015f2"
 
 **Do not proceed if any validation fails.**
 
-### 2. Upload DAGs and Requirements to DAG Bucket (BEFORE Creating MWAA)
+### 2. Upload DAGs, Requirements, and Ingestion Code to DAG Bucket (BEFORE Creating MWAA)
 
 The MWAA environment reads DAGs and `requirements.txt` from the persistent DAG bucket at startup.
+The `ingestion` package must also be available on the Python path. Sync it under `dags/ingestion/`
+so DAGs can import `ingestion.api.*`.
+
 Upload them before creating the environment:
 
 ```bash
@@ -81,8 +84,12 @@ Upload them before creating the environment:
 aws s3 sync orchestration/dags/ s3://dwh-mwaa-dags-9015f2/dags/ --profile dwh --exclude "__pycache__/*"
 aws s3 cp orchestration/requirements.txt s3://dwh-mwaa-dags-9015f2/requirements.txt --profile dwh
 
+# Sync ingestion package so DAGs can import ingestion.api.*
+aws s3 sync ingestion/ s3://dwh-mwaa-dags-9015f2/dags/ingestion/ --profile dwh --exclude "__pycache__/*" --exclude "*.pyc"
+
 # Verify upload
 aws s3 ls s3://dwh-mwaa-dags-9015f2/dags/ --profile dwh
+aws s3 ls s3://dwh-mwaa-dags-9015f2/dags/ingestion/ --profile dwh
 aws s3 ls s3://dwh-mwaa-dags-9015f2/requirements.txt --profile dwh
 ```
 

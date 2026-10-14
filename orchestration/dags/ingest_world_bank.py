@@ -10,12 +10,10 @@ from __future__ import annotations
 
 import json
 import logging
-import os
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from airflow.configuration import conf
-from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from airflow.providers.databricks.hooks.databricks import DatabricksHook
 from airflow.sdk import DAG, Variable, task
 
@@ -27,13 +25,14 @@ DEFAULT_SCHEMA = "bronze"
 SOURCE_NAME = "world_bank_indicators"
 RAW_PREFIX = "api/world_bank_indicators"
 QUARANTINE_PREFIX = "quarantine/api/world_bank_indicators"
+# SQL file lives in ingestion/sql/ which is synced to dags/ingestion/sql/
 SQL_FILE_PATH = "ingestion/sql/bronze_world_bank_indicators.sql"
 
 with DAG(
     dag_id="ingest_world_bank",
     description="Ingest World Bank Indicators -> S3 raw -> Bronze Delta table",
     schedule=None,  # Triggered manually or by daily_pipeline
-    start_date=datetime(2025, 1, 1, tzinfo=timezone.utc),
+    start_date=datetime(2025, 1, 1, tzinfo=UTC),
     catchup=False,
     is_paused_upon_creation=True,
     max_active_runs=1,
@@ -58,8 +57,17 @@ with DAG(
 
         Returns dict with batch metadata for downstream tasks.
         """
-        from ingestion.api.world_bank_client import WorldBankClient, WorldBankConfig, WorldBankAPIError
-        from ingestion.api.s3_writer import S3Writer, S3WriterConfig, generate_batch_id, get_ingest_date
+        from ingestion.api.s3_writer import (
+            S3Writer,
+            S3WriterConfig,
+            generate_batch_id,
+            get_ingest_date,
+        )
+        from ingestion.api.world_bank_client import (
+            WorldBankAPIError,
+            WorldBankClient,
+            WorldBankConfig,
+        )
 
         # Resolve parameters
         params = context.get("params", {})
@@ -200,7 +208,7 @@ with DAG(
         # Get Databricks connection from secret
         databricks_secret = Variable.get("databricks", deserialize_json=True)
         if not isinstance(databricks_secret, dict):
-            raise ValueError("databricks secret must be a JSON object")
+            raise TypeError("databricks secret must be a JSON object")
 
         host = databricks_secret.get("host")
         token = databricks_secret.get("token")
@@ -209,8 +217,8 @@ with DAG(
         if not all([host, token, warehouse_id]):
             raise ValueError("databricks secret must contain host, token, and warehouse_id")
 
-        # Read SQL template
-        sql_path = Path(__file__).parent.parent / SQL_FILE_PATH
+        # Read SQL template (ingestion/sql/ is synced to dags/ingestion/sql/)
+        sql_path = Path(__file__).parent / SQL_FILE_PATH
         if not sql_path.exists():
             raise FileNotFoundError(f"SQL file not found: {sql_path}")
 

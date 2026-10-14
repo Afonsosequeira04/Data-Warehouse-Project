@@ -9,10 +9,9 @@ from __future__ import annotations
 import json
 import logging
 import time
+from collections.abc import Iterator
 from dataclasses import dataclass
-from datetime import datetime, timezone
-from typing import Any, Iterator
-from urllib.parse import urljoin
+from typing import Self
 
 import requests
 from requests.adapters import HTTPAdapter
@@ -59,7 +58,6 @@ class Observation:
 class WorldBankAPIError(Exception):
     """Raised when the World Bank API returns an error response."""
 
-    pass
 
 
 class WorldBankClient:
@@ -205,7 +203,9 @@ class WorldBankClient:
                 obs_status=obs_status,
                 decimal=decimal,
             )
-        except Exception as e:
+        # Broad catch is intentional as a final fallback for unexpected parsing errors
+        # All known error cases are handled above; this captures any edge cases
+        except Exception as e:  # noqa: BLE001
             logger.warning(f"Failed to parse observation for {indicator}: {e}")
             return None
 
@@ -279,7 +279,7 @@ class WorldBankClient:
         """Close the underlying session."""
         self._session.close()
 
-    def __enter__(self) -> WorldBankClient:
+    def __enter__(self) -> Self:
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb) -> None:
