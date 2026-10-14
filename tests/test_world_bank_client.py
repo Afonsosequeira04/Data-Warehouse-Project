@@ -242,6 +242,97 @@ class TestWorldBankClient:
         # Should only fetch max_pages (3) even though API says 10 pages exist
         assert len(observations) == 3
 
+    @responses.activate
+    def test_fetch_indicator_retry_on_transient_error(self, mock_world_bank_config, gdp_growth_page1):
+        """Test retry on transient HTTP error (503) followed by success."""
+        indicator = "NY.GDP.MKTP.KD.ZG"
+        base_url = mock_world_bank_config.base_url.rstrip("/")
+        path = f"/country/{mock_world_bank_config.countries}/indicator/{indicator}"
+
+        # First request: 503 Service Unavailable (transient)
+        # Second request: success
+        responses.get(
+            f"{base_url}{path}",
+            status=503,
+            body="Service Unavailable",
+            match=[
+                responses.matchers.query_param_matcher({
+                    "format": "json",
+                    "per_page": "500",
+                    "page": "1",
+                    "date": "2023:2023",
+                })
+            ],
+        )
+        responses.get(
+            f"{base_url}{path}",
+            json=gdp_growth_page1,
+            match=[
+                responses.matchers.query_param_matcher({
+                    "format": "json",
+                    "per_page": "500",
+                    "page": "1",
+                    "date": "2023:2023",
+                })
+            ],
+        )
+
+        # Use config with max_retries=1 and short backoff, matching the fixture's date_range
+        config = WorldBankConfig(
+            base_url=mock_world_bank_config.base_url,
+            indicators=(indicator,),
+            max_pages=1,
+            rate_limit_rps=1000.0,
+            max_retries=1,
+            backoff_factor=0.01,
+            timeout_seconds=5,
+            date_range=mock_world_bank_config.date_range,
+        )
+        client = WorldBankClient(config)
+        observations = list(client.fetch_indicator(indicator))
+
+        # Should have retried and succeeded
+        assert len(observations) == 3
+
+    @responses.activate
+    def test_fetch_indicator_retry_exhausted(self, mock_world_bank_config):
+        """Test that retries are exhausted after max_retries attempts."""
+        indicator = "NY.GDP.MKTP.KD.ZG"
+        base_url = mock_world_bank_config.base_url.rstrip("/")
+        path = f"/country/{mock_world_bank_config.countries}/indicator/{indicator}"
+
+        # All requests return 503 - use the date_range from mock_world_bank_config (2023:2023)
+        for _ in range(3):  # max_retries=1 means 1 initial + 1 retry = 2 attempts, but we mock 3 to be safe
+            responses.get(
+                f"{base_url}{path}",
+                status=503,
+                body="Service Unavailable",
+                match=[
+                    responses.matchers.query_param_matcher({
+                        "format": "json",
+                        "per_page": "500",
+                        "page": "1",
+                        "date": mock_world_bank_config.date_range,
+                    })
+                ],
+            )
+
+        config = WorldBankConfig(
+            base_url=mock_world_bank_config.base_url,
+            indicators=(indicator,),
+            max_pages=1,
+            rate_limit_rps=1000.0,
+            max_retries=1,
+            backoff_factor=0.01,
+            timeout_seconds=5,
+            date_range=mock_world_bank_config.date_range,
+        )
+        client = WorldBankClient(config)
+        with pytest.raises(WorldBankAPIError) as exc_info:
+            list(client.fetch_indicator(indicator))
+
+        assert "HTTP 503" in str(exc_info.value)
+
     def test_parse_observation_with_null_value(self, mock_world_bank_config):
         """Test parsing observation with null value."""
         client = WorldBankClient(mock_world_bank_config)
