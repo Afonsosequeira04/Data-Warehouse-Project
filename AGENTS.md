@@ -287,6 +287,21 @@ One phase = one branch = one PR. Never commit directly to `main`.
 - Last commit on the branch: update "Current phase" (only if the Definition of Done is met).
 - Afonso reviews and merges manually. If he requests changes, fix them on the same branch and update the PR text.
 
+## Phase todo list (mandatory)
+
+Use the `todowrite` tool for every phase, chore or /phase run. This is how Afonso follows progress in the OpenCode sidebar.
+
+- Before editing anything, create the todo list from the phase's Tasks in `docs/NOTION_PROJECT_PLAN.md`
+  plus the fixed workflow steps: cleanup of the previous branch, branch creation, verification,
+  end-of-phase cleanup checklist, push + PR, PHASE COMPLETION SUMMARY.
+- Keep exactly one item `in_progress` at a time. Mark it `completed` as soon as it is done, not in batches.
+- Add new items when new work is discovered. Never delete or silently skip an item.
+- Anything that needs Afonso (terraform apply/destroy, filling a secret, merging) is its own item prefixed
+  with `GATE:` and stays unchecked until he confirms it is done.
+- The todo list does not replace the PHASE COMPLETION SUMMARY. At the end, every item must be `completed`
+  or listed in the summary as left over, with the reason.
+- Write todo items in English.
+
 ## Mandatory Phase-Completion Report
 
 At the end of every completed phase/task, the agent MUST output exactly this structure:
