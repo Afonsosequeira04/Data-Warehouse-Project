@@ -10,12 +10,19 @@ from __future__ import annotations
 
 import json
 import logging
-import time
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from airflow.configuration import conf
 from airflow.sdk import DAG, Variable, task
+
+# Import shared Databricks SQL utilities
+from ingestion.databricks_sql import (
+    execute_sql_batch,
+    normalize_host,
+    render_sql_template,
+    split_sql_statements,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -27,58 +34,6 @@ RAW_PREFIX = "api/world_bank_indicators"
 QUARANTINE_PREFIX = "quarantine/api/world_bank_indicators"
 # SQL file lives in ingestion/sql/ which is synced to dags/ingestion/sql/
 SQL_FILE_PATH = "ingestion/sql/bronze_world_bank_indicators.sql"
-
-
-def _execute_databricks_statement(
-    host: str, token: str, warehouse_id: str, statement: str, wait_timeout: str = "50s"
-) -> dict:
-    """Execute a single SQL statement via Databricks Statement Execution API.
-
-    Returns the full response JSON with result.data_array on success.
-    """
-    import requests
-
-    url = f"https://{host}/api/2.0/sql/statements"
-    headers = {
-        "Authorization": f"Bearer {token}",
-        "Content-Type": "application/json",
-    }
-    payload = {
-        "statement": statement,
-        "warehouse_id": warehouse_id,
-        "wait_timeout": wait_timeout,
-        "disposition": "EXTERNAL_LINKS",
-        "format": "JSON_ARRAY",
-    }
-
-    # Submit statement
-    response = requests.post(url, headers=headers, json=payload, timeout=60)
-    response.raise_for_status()
-    result = response.json()
-
-    statement_id = result.get("statement_id")
-    if not statement_id:
-        raise RuntimeError(f"No statement_id in response: {result}")
-
-    # Poll for completion
-    status_url = f"{url}/{statement_id}"
-    status_headers = {"Authorization": f"Bearer {token}"}
-
-    while True:
-        status_resp = requests.get(status_url, headers=status_headers, timeout=30)
-        status_resp.raise_for_status()
-        status_data = status_resp.json()
-
-        state = status_data.get("status", {}).get("state", "")
-        if state in ("SUCCEEDED", "FAILED", "CANCELED"):
-            break
-        time.sleep(1)
-
-    if state != "SUCCEEDED":
-        error_msg = status_data.get("status", {}).get("error", {}).get("message", "Unknown error")
-        raise RuntimeError(f"Statement {statement_id} failed: {error_msg}")
-
-    return status_data
 
 
 with DAG(
@@ -106,7 +61,7 @@ with DAG(
 
     @task
     def fetch_and_validate(**context) -> dict:
-        """Fetch World Bank data, validate responses, write raw JSON to S3.
+        """Fetch World Bank data, validate responses, write raw NDJSON to S3.
 
         Returns dict with batch metadata for downstream tasks.
         """
@@ -278,28 +233,31 @@ with DAG(
         with open(sql_path) as f:
             sql_template = f.read()
 
-        # Render SQL with batch parameters
-        sql = sql_template.replace("${catalog}", fetch_result["catalog"]) \
-                         .replace("${schema}", fetch_result["schema"]) \
-                         .replace("${raw_path}", fetch_result["raw_path"]) \
-                         .replace("${batch_id}", fetch_result["batch_id"]) \
-                         .replace("${batch_date}", fetch_result["ingest_date"])
+        # Render SQL with batch parameters using shared utility
+        sql = render_sql_template(
+            sql_template=sql_template,
+            catalog=fetch_result["catalog"],
+            schema=fetch_result["schema"],
+            raw_path=fetch_result["raw_path"],
+            batch_id=fetch_result["batch_id"],
+            batch_date=fetch_result["ingest_date"],
+        )
 
         # Split into individual statements (CREATE TABLE, then COPY INTO)
-        statements = [stmt.strip() for stmt in sql.split(";") if stmt.strip()]
+        statements = split_sql_statements(sql)
 
         logger.info(f"Executing {len(statements)} statements for batch {fetch_result['batch_id']}")
 
         # Execute each statement via Databricks Statement Execution API
-        for i, statement in enumerate(statements, 1):
-            logger.info(f"Executing statement {i}/{len(statements)}")
-            result = _execute_databricks_statement(
-                host=host,
-                token=token,
-                warehouse_id=warehouse_id,
-                statement=statement,
-                wait_timeout="50s",
-            )
+        results = execute_sql_batch(
+            host=normalize_host(fetch_result.get("databricks_host", "")) or normalize_host(host),
+            token=token,
+            warehouse_id=warehouse_id,
+            statements=statements,
+            wait_timeout="50s",
+        )
+
+        for i, result in enumerate(results, 1):
             logger.info(f"Statement {i} completed: {result.get('statement_id')}")
 
         logger.info("All statements completed successfully")
@@ -341,12 +299,22 @@ with DAG(
         """
 
         logger.info(f"Verifying Bronze load for batch {batch_id}")
-        result = _execute_databricks_statement(
-            host=host,
+
+        # Use INLINE disposition for small verification results
+        from ingestion.databricks_sql import (
+            execute_statement,
+            normalize_host,
+            parse_verification_row,
+        )
+
+        result = execute_statement(
+            host=normalize_host(host),
             token=token,
             warehouse_id=warehouse_id,
             statement=verify_sql,
             wait_timeout="50s",
+            disposition="INLINE",
+            format="JSON_ARRAY",
         )
 
         # Parse result from result.data_array
@@ -355,47 +323,9 @@ with DAG(
             raise RuntimeError("Verification query returned no rows")
 
         row = rows[0]
-        actual_count = row[0]
-        batch_count = row[1]
-        min_year = row[2]
-        max_year = row[3]
-        non_null_values = row[4]
 
-        # Validate
-        if batch_count != 1:
-            raise ValueError(f"Expected 1 distinct _batch_id, found {batch_count}")
-
-        if actual_count == 0:
-            raise ValueError("No rows loaded into Bronze table")
-
-        # Allow some tolerance for null values being filtered
-        if actual_count < expected_records * 0.5:
-            raise ValueError(
-                f"Row count mismatch: expected ~{expected_records}, got {actual_count}"
-            )
-
-        logger.info(
-            f"Verification passed: {actual_count} rows, batch_id={batch_id}, "
-            f"year range={min_year}-{max_year}, non-null values={non_null_values}"
-        )
-
-        return {
-            **copy_result,
-            "verification": {
-                "row_count": actual_count,
-                "min_year": min_year,
-                "max_year": max_year,
-                "non_null_values": non_null_values,
-                "status": "passed",
-            },
-        }
-
-        row = rows[0]
-        actual_count = row[0]
-        batch_count = row[1]
-        min_year = row[2]
-        max_year = row[3]
-        non_null_values = row[4]
+        # Databricks JSON_ARRAY returns all values as strings - cast to int
+        actual_count, batch_count, min_year, max_year, non_null_values = parse_verification_row(row)
 
         # Validate
         if batch_count != 1:

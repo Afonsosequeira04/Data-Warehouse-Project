@@ -4,8 +4,6 @@ This test validates that all DAGs can be imported without errors,
 catching syntax errors and import issues before spending environment time.
 """
 
-import sys
-import os
 from pathlib import Path
 
 # Add the orchestration/dags directory to the path

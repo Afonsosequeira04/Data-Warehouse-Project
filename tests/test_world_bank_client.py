@@ -6,10 +6,10 @@ import pytest
 import responses
 
 from ingestion.api.world_bank_client import (
+    Observation,
+    WorldBankAPIError,
     WorldBankClient,
     WorldBankConfig,
-    WorldBankAPIError,
-    Observation,
 )
 
 

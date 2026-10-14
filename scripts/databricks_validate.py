@@ -1,14 +1,24 @@
 #!/usr/bin/env python3
-"""Databricks validation: run rendered SQL against a scratch table."""
+"""Databricks validation: run rendered SQL against a scratch table.
+
+Uses shared ingestion.databricks_sql module for SQL rendering, statement splitting,
+and execution - same code as the DAG.
+"""
 
 from __future__ import annotations
 
-import json
 import os
 import sys
-import time
 
-import requests
+# Add project root to path so we can import ingestion.databricks_sql
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from ingestion.databricks_sql import (
+    execute_sql_batch,
+    normalize_host,
+    render_sql_template,
+    split_sql_statements,
+)
 
 # Get Databricks credentials from environment (set from Secrets Manager)
 DATABRICKS_HOST = os.environ.get("DATABRICKS_HOST")
@@ -31,63 +41,21 @@ SCRATCH_TABLE = f"{CATALOG}.{SCHEMA}.{SOURCE_NAME}_p3test"
 RAW_PATH = f"s3://{RAW_BUCKET}/{RAW_PREFIX}/ingest_date={INGEST_DATE}/{BATCH_ID}/"
 
 
-def execute_statement(statement: str, wait_timeout: str = "50s") -> dict:
-    """Execute a single SQL statement via Databricks Statement Execution API."""
-    url = f"https://{DATABRICKS_HOST}/api/2.0/sql/statements"
-    headers = {
-        "Authorization": f"Bearer {DATABRICKS_TOKEN}",
-        "Content-Type": "application/json",
-    }
-    payload = {
-        "statement": statement,
-        "warehouse_id": DATABRICKS_WAREHOUSE_ID,
-        "wait_timeout": wait_timeout,
-        "disposition": "EXTERNAL_LINKS",
-        "format": "JSON_ARRAY",
-    }
-
-    # Submit statement
-    response = requests.post(url, headers=headers, json=payload, timeout=60)
-    response.raise_for_status()
-    result = response.json()
-
-    statement_id = result.get("statement_id")
-    if not statement_id:
-        raise RuntimeError(f"No statement_id in response: {result}")
-
-    # Poll for completion
-    status_url = f"{url}/{statement_id}"
-    status_headers = {"Authorization": f"Bearer {DATABRICKS_TOKEN}"}
-
-    while True:
-        status_resp = requests.get(status_url, headers=status_headers, timeout=30)
-        status_resp.raise_for_status()
-        status_data = status_resp.json()
-
-        state = status_data.get("status", {}).get("state", "")
-        if state in ("SUCCEEDED", "FAILED", "CANCELED"):
-            break
-        time.sleep(1)
-
-    if state != "SUCCEEDED":
-        error_msg = status_data.get("status", {}).get("error", {}).get("message", "Unknown error")
-        raise RuntimeError(f"Statement {statement_id} failed: {error_msg}")
-
-    return status_data
-
-
 def main():
     # Read SQL template
     sql_path = "ingestion/sql/bronze_world_bank_indicators.sql"
     with open(sql_path) as f:
         sql_template = f.read()
 
-    # Render SQL with batch parameters
-    sql = sql_template.replace("${catalog}", CATALOG) \
-                     .replace("${schema}", SCHEMA) \
-                     .replace("${raw_path}", RAW_PATH) \
-                     .replace("${batch_id}", BATCH_ID) \
-                     .replace("${batch_date}", INGEST_DATE)
+    # Render SQL with batch parameters using shared utility
+    sql = render_sql_template(
+        sql_template=sql_template,
+        catalog=CATALOG,
+        schema=SCHEMA,
+        raw_path=RAW_PATH,
+        batch_id=BATCH_ID,
+        batch_date=INGEST_DATE,
+    )
 
     # Override table name for scratch table
     sql = sql.replace(
@@ -100,28 +68,26 @@ def main():
     print(sql)
     print("=" * 60)
 
-    # Split into individual statements, filtering out comment-only statements
-    raw_statements = [stmt.strip() for stmt in sql.split(";") if stmt.strip()]
-    # Filter out statements that are only comments or empty
-    statements = [
-        stmt for stmt in raw_statements
-        if not all(line.strip().startswith("--") or not line.strip() for line in stmt.split("\n"))
-    ]
+    # Split into executable statements using shared utility
+    statements = split_sql_statements(sql)
 
     print(f"\nExecuting {len(statements)} statements against scratch table {SCRATCH_TABLE}...")
 
     try:
-        for i, statement in enumerate(statements, 1):
-            print(f"\nStatement {i}/{len(statements)}:")
-            print(statement[:200] + "..." if len(statement) > 200 else statement)
-            result = execute_statement(statement)
+        # Execute statements using shared utility
+        results = execute_sql_batch(
+            host=normalize_host(DATABRICKS_HOST),
+            token=DATABRICKS_TOKEN,
+            warehouse_id=DATABRICKS_WAREHOUSE_ID,
+            statements=statements,
+            wait_timeout="50s",
+        )
+
+        for i, result in enumerate(results, 1):
+            print(f"\nStatement {i}/{len(results)}:")
             print(f"  Status: {result.get('status', {}).get('state')}")
             print(f"  Statement ID: {result.get('statement_id')}")
-            # Print full result for debugging
-            if "result" in result:
-                print(f"  Full result keys: {list(result['result'].keys())}")
-                if "external_links" in result["result"]:
-                    print(f"  external_links: {result['result']['external_links']}")
+            if result.get("result"):
                 if "data_array" in result["result"] and result["result"]["data_array"]:
                     print(f"  Result data_array: {result['result']['data_array']}")
 
@@ -137,8 +103,18 @@ def main():
             WHERE _batch_id = '{BATCH_ID}'
         """
 
-        print(f"\nRunning verification query...")
-        result = execute_statement(verify_sql)
+        print("\nRunning verification query...")
+        from ingestion.databricks_sql import execute_statement, parse_verification_row
+
+        result = execute_statement(
+            host=normalize_host(DATABRICKS_HOST),
+            token=DATABRICKS_TOKEN,
+            warehouse_id=DATABRICKS_WAREHOUSE_ID,
+            statement=verify_sql,
+            wait_timeout="50s",
+            disposition="INLINE",
+            format="JSON_ARRAY",
+        )
 
         # Parse result
         rows = result.get("result", {}).get("data_array", [])
@@ -146,13 +122,11 @@ def main():
             raise RuntimeError("Verification query returned no rows")
 
         row = rows[0]
-        actual_count = row[0]
-        batch_count = row[1]
-        min_year = row[2]
-        max_year = row[3]
-        non_null_values = row[4]
 
-        print(f"\nVerification Results:")
+        # Parse verification row using shared utility (handles string->int casting)
+        actual_count, batch_count, min_year, max_year, non_null_values = parse_verification_row(row)
+
+        print("\nVerification Results:")
         print(f"  Row count: {actual_count}")
         print(f"  Distinct batch_ids: {batch_count}")
         print(f"  Year range: {min_year} - {max_year}")
@@ -170,9 +144,17 @@ def main():
             WHERE _batch_id = '{BATCH_ID}'
             LIMIT 5
         """
-        print(f"\nSample rows:")
-        result = execute_statement(sample_sql)
-        rows = result.get("result", {}).get("data_array", [])
+        print("\nSample rows:")
+        sample_result = execute_statement(
+            host=normalize_host(DATABRICKS_HOST),
+            token=DATABRICKS_TOKEN,
+            warehouse_id=DATABRICKS_WAREHOUSE_ID,
+            statement=sample_sql,
+            wait_timeout="50s",
+            disposition="INLINE",
+            format="JSON_ARRAY",
+        )
+        rows = sample_result.get("result", {}).get("data_array", [])
         for row in rows:
             print(f"  {row}")
 
@@ -182,7 +164,14 @@ def main():
         # Clean up: drop scratch table
         drop_sql = f"DROP TABLE IF EXISTS {SCRATCH_TABLE}"
         print(f"\nCleaning up: dropping scratch table {SCRATCH_TABLE}...")
-        execute_statement(drop_sql, wait_timeout="10s")
+        from ingestion.databricks_sql import execute_statement
+        execute_statement(
+            host=normalize_host(DATABRICKS_HOST),
+            token=DATABRICKS_TOKEN,
+            warehouse_id=DATABRICKS_WAREHOUSE_ID,
+            statement=drop_sql,
+            wait_timeout="10s",
+        )
         print("  Done.")
 
 
