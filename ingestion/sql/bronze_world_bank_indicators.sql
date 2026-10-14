@@ -1,8 +1,8 @@
 -- Bronze table for World Bank Indicators
--- Loaded via COPY INTO from raw JSON in S3 (ADR-001)
+-- Loaded via COPY INTO from raw NDJSON in S3 (ADR-001)
 -- Source: s3://${raw_bucket}/api/world_bank_indicators/ingest_date=YYYY-MM-DD/<batch_id>/*.json
 
-CREATE TABLE IF NOT EXISTS ${catalog}.bronze.world_bank_indicators (
+CREATE TABLE IF NOT EXISTS ${catalog}.${schema}.world_bank_indicators (
     -- Source data fields
     country_id STRING NOT NULL,
     country_name STRING NOT NULL,
@@ -12,7 +12,7 @@ CREATE TABLE IF NOT EXISTS ${catalog}.bronze.world_bank_indicators (
     value DOUBLE,
     unit STRING,
     obs_status STRING,
-    decimal INT,
+    `decimal` INT,
 
     -- Technical metadata (added at ingestion)
     _batch_id STRING NOT NULL,
@@ -28,26 +28,20 @@ TBLPROPERTIES (
 );
 
 -- COPY INTO statement for incremental loading
--- Run this after raw JSON files are written to S3 for a given batch
-COPY INTO ${catalog}.bronze.world_bank_indicators
+-- Run this after raw NDJSON files are written to S3 for a given batch
+COPY INTO ${catalog}.${schema}.world_bank_indicators
 FROM (
     SELECT
-        -- Extract from JSON structure
-        json_data:country.id::STRING AS country_id,
-        json_data:country.value::STRING AS country_name,
-        json_data:indicator.id::STRING AS indicator_id,
-        json_data:indicator.value::STRING AS indicator_name,
-        json_data:date::INT AS year,
-        CASE
-            WHEN json_data:value IS NOT NULL AND json_data:value != '' THEN json_data:value::DOUBLE
-            ELSE NULL
-        END AS value,
-        json_data:unit::STRING AS unit,
-        json_data:obs_status::STRING AS obs_status,
-        CASE
-            WHEN json_data:decimal IS NOT NULL AND json_data:decimal != '' THEN json_data:decimal::INT
-            ELSE NULL
-        END AS decimal,
+        -- COPY INTO exposes top-level JSON fields as columns for NDJSON (multiLine=false)
+        country.id::STRING AS country_id,
+        country.value::STRING AS country_name,
+        indicator.id::STRING AS indicator_id,
+        indicator.value::STRING AS indicator_name,
+        CAST(date AS INT) AS year,
+        TRY_CAST(value AS DOUBLE) AS value,
+        unit::STRING AS unit,
+        obs_status::STRING AS obs_status,
+        TRY_CAST(`decimal` AS INT) AS `decimal`,
         -- Technical metadata
         _metadata.file_path AS _source_file,
         CURRENT_TIMESTAMP() AS _ingested_at,
@@ -57,7 +51,8 @@ FROM (
     FROM '${raw_path}'
 )
 FILEFORMAT = JSON
-FORMAT_OPTIONS ('multiline' = 'true')
+FORMAT_OPTIONS ('multiLine' = 'false')
+PATTERN = '*.json'
 COPY_OPTIONS (
     'mergeSchema' = 'false',
     'force' = 'false'
@@ -65,6 +60,6 @@ COPY_OPTIONS (
 
 -- Verification query: count rows and verify batch_id
 -- SELECT _batch_id, COUNT(*) as row_count, MIN(year), MAX(year)
--- FROM ${catalog}.bronze.world_bank_indicators
+-- FROM ${catalog}.${schema}.world_bank_indicators
 -- WHERE _batch_id = '${batch_id}'
 -- GROUP BY _batch_id;

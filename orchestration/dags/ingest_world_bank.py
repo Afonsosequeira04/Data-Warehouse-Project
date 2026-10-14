@@ -1,8 +1,8 @@
 """World Bank Indicators ingestion DAG.
 
 Tasks:
-1. fetch_and_validate: Fetch from World Bank API, validate, write raw JSON to S3
-2. copy_into_bronze: Run COPY INTO via Databricks SQL Warehouse to load Bronze table
+1. fetch_and_validate: Fetch from World Bank API, validate, write raw NDJSON to S3
+2. copy_into_bronze: Run COPY INTO via Databricks SQL Statement Execution API
 3. verify_bronze_load: Verify row count and _batch_id in Bronze table
 """
 
@@ -10,11 +10,11 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from airflow.configuration import conf
-from airflow.providers.databricks.hooks.databricks import DatabricksHook
 from airflow.sdk import DAG, Variable, task
 
 logger = logging.getLogger(__name__)
@@ -27,6 +27,59 @@ RAW_PREFIX = "api/world_bank_indicators"
 QUARANTINE_PREFIX = "quarantine/api/world_bank_indicators"
 # SQL file lives in ingestion/sql/ which is synced to dags/ingestion/sql/
 SQL_FILE_PATH = "ingestion/sql/bronze_world_bank_indicators.sql"
+
+
+def _execute_databricks_statement(
+    host: str, token: str, warehouse_id: str, statement: str, wait_timeout: str = "50s"
+) -> dict:
+    """Execute a single SQL statement via Databricks Statement Execution API.
+
+    Returns the full response JSON with result.data_array on success.
+    """
+    import requests
+
+    url = f"https://{host}/api/2.0/sql/statements"
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json",
+    }
+    payload = {
+        "statement": statement,
+        "warehouse_id": warehouse_id,
+        "wait_timeout": wait_timeout,
+        "disposition": "EXTERNAL_LINKS",
+        "format": "JSON_ARRAY",
+    }
+
+    # Submit statement
+    response = requests.post(url, headers=headers, json=payload, timeout=60)
+    response.raise_for_status()
+    result = response.json()
+
+    statement_id = result.get("statement_id")
+    if not statement_id:
+        raise RuntimeError(f"No statement_id in response: {result}")
+
+    # Poll for completion
+    status_url = f"{url}/{statement_id}"
+    status_headers = {"Authorization": f"Bearer {token}"}
+
+    while True:
+        status_resp = requests.get(status_url, headers=status_headers, timeout=30)
+        status_resp.raise_for_status()
+        status_data = status_resp.json()
+
+        state = status_data.get("status", {}).get("state", "")
+        if state in ("SUCCEEDED", "FAILED", "CANCELED"):
+            break
+        time.sleep(1)
+
+    if state != "SUCCEEDED":
+        error_msg = status_data.get("status", {}).get("error", {}).get("message", "Unknown error")
+        raise RuntimeError(f"Statement {statement_id} failed: {error_msg}")
+
+    return status_data
+
 
 with DAG(
     dag_id="ingest_world_bank",
@@ -204,7 +257,7 @@ with DAG(
 
     @task
     def copy_into_bronze(fetch_result: dict) -> dict:
-        """Run COPY INTO via Databricks SQL Warehouse to load Bronze table."""
+        """Run COPY INTO via Databricks SQL Statement Execution API to load Bronze table."""
         # Get Databricks connection from secret
         databricks_secret = Variable.get("databricks", deserialize_json=True)
         if not isinstance(databricks_secret, dict):
@@ -232,44 +285,44 @@ with DAG(
                          .replace("${batch_id}", fetch_result["batch_id"]) \
                          .replace("${batch_date}", fetch_result["ingest_date"])
 
-        logger.info(f"Executing COPY INTO for batch {fetch_result['batch_id']}")
+        # Split into individual statements (CREATE TABLE, then COPY INTO)
+        statements = [stmt.strip() for stmt in sql.split(";") if stmt.strip()]
 
-        # Execute via Databricks SQL Warehouse
-        hook = DatabricksHook(databricks_conn_id="databricks_default")
-        # Override connection with secret values
-        hook.host = host
-        hook.token = token
+        logger.info(f"Executing {len(statements)} statements for batch {fetch_result['batch_id']}")
 
-        # Submit SQL statement
-        response = hook.run_sql(
-            sql=sql,
-            warehouse_id=warehouse_id,
-            wait_timeout=300,
-        )
+        # Execute each statement via Databricks Statement Execution API
+        for i, statement in enumerate(statements, 1):
+            logger.info(f"Executing statement {i}/{len(statements)}")
+            result = _execute_databricks_statement(
+                host=host,
+                token=token,
+                warehouse_id=warehouse_id,
+                statement=statement,
+                wait_timeout="50s",
+            )
+            logger.info(f"Statement {i} completed: {result.get('statement_id')}")
 
-        if response.get("status", {}).get("state") != "SUCCEEDED":
-            error_msg = response.get("status", {}).get("error", {}).get("message", "Unknown error")
-            raise RuntimeError(f"COPY INTO failed: {error_msg}")
-
-        logger.info("COPY INTO completed successfully")
+        logger.info("All statements completed successfully")
 
         return {
             **fetch_result,
             "copy_into_status": "success",
-            "statement_id": response.get("statement_id"),
+            "statements_executed": len(statements),
         }
 
     @task
     def verify_bronze_load(copy_result: dict) -> dict:
         """Verify Bronze table load: row count and _batch_id match."""
         databricks_secret = Variable.get("databricks", deserialize_json=True)
+        if not isinstance(databricks_secret, dict):
+            raise TypeError("databricks secret must be a JSON object")
+
         host = databricks_secret.get("host")
         token = databricks_secret.get("token")
         warehouse_id = databricks_secret.get("warehouse_id")
 
-        hook = DatabricksHook(databricks_conn_id="databricks_default")
-        hook.host = host
-        hook.token = token
+        if not all([host, token, warehouse_id]):
+            raise ValueError("databricks secret must contain host, token, and warehouse_id")
 
         table_name = copy_result["table_name"]
         batch_id = copy_result["batch_id"]
@@ -288,21 +341,54 @@ with DAG(
         """
 
         logger.info(f"Verifying Bronze load for batch {batch_id}")
-        response = hook.run_sql(
-            sql=verify_sql,
+        result = _execute_databricks_statement(
+            host=host,
+            token=token,
             warehouse_id=warehouse_id,
-            wait_timeout=60,
+            statement=verify_sql,
+            wait_timeout="50s",
         )
 
-        if response.get("status", {}).get("state") != "SUCCEEDED":
-            error_msg = response.get("status", {}).get("error", {}).get("message", "Unknown error")
-            raise RuntimeError(f"Verification query failed: {error_msg}")
-
-        # Parse result
-        result_data = response.get("result", {})
-        rows = result_data.get("data_array", [])
+        # Parse result from result.data_array
+        rows = result.get("result", {}).get("data_array", [])
         if not rows:
             raise RuntimeError("Verification query returned no rows")
+
+        row = rows[0]
+        actual_count = row[0]
+        batch_count = row[1]
+        min_year = row[2]
+        max_year = row[3]
+        non_null_values = row[4]
+
+        # Validate
+        if batch_count != 1:
+            raise ValueError(f"Expected 1 distinct _batch_id, found {batch_count}")
+
+        if actual_count == 0:
+            raise ValueError("No rows loaded into Bronze table")
+
+        # Allow some tolerance for null values being filtered
+        if actual_count < expected_records * 0.5:
+            raise ValueError(
+                f"Row count mismatch: expected ~{expected_records}, got {actual_count}"
+            )
+
+        logger.info(
+            f"Verification passed: {actual_count} rows, batch_id={batch_id}, "
+            f"year range={min_year}-{max_year}, non-null values={non_null_values}"
+        )
+
+        return {
+            **copy_result,
+            "verification": {
+                "row_count": actual_count,
+                "min_year": min_year,
+                "max_year": max_year,
+                "non_null_values": non_null_values,
+                "status": "passed",
+            },
+        }
 
         row = rows[0]
         actual_count = row[0]

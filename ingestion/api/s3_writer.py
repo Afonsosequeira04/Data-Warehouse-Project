@@ -67,14 +67,14 @@ class S3Writer:
         data: list[dict],
         metadata: dict | None = None,
     ) -> WriteResult:
-        """Write a raw API response page to S3.
+        """Write a raw API response page to S3 as NDJSON (one observation per line).
 
         Args:
             ingest_date: Ingestion date in YYYY-MM-DD format
             batch_id: Unique batch identifier
             indicator: World Bank indicator code
             page: Page number
-            data: Raw API response data (list of observations)
+            data: Raw API response data (list of observations, each is the original item dict)
             metadata: Optional additional metadata to include
 
         Returns:
@@ -82,34 +82,23 @@ class S3Writer:
         """
         key = self._build_raw_key(ingest_date, batch_id, indicator, page)
 
-        payload = {
-            "source": "world_bank_indicators",
-            "indicator": indicator,
-            "page": page,
-            "batch_id": batch_id,
-            "ingest_date": ingest_date,
-            "ingested_at": datetime.now(UTC).isoformat(),
-            "record_count": len(data),
-            "data": data,
-        }
-
-        if metadata:
-            payload["metadata"] = metadata
-
-        body = json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8")
+        # Write NDJSON: one JSON object per line (each observation as returned by the API)
+        lines = [json.dumps(obs, ensure_ascii=False) for obs in data]
+        body = "\n".join(lines).encode("utf-8")
 
         try:
             response = self._s3.put_object(
                 Bucket=self.config.raw_bucket,
                 Key=key,
                 Body=body,
-                ContentType="application/json",
+                ContentType="application/x-ndjson",
                 Metadata={
                     "source": "world_bank_indicators",
                     "indicator": indicator,
                     "batch_id": batch_id,
                     "ingest_date": ingest_date,
                     "page": str(page),
+                    "record_count": str(len(data)),
                 },
             )
         except ClientError as e:
