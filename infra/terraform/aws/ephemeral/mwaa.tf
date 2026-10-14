@@ -38,7 +38,7 @@ resource "aws_mwaa_environment" "main" {
   }
 
   # Configure Airflow to use AWS Secrets Manager as the secrets backend
-  # and expose the DAG bucket name to DAGs via a custom config option.
+  # and expose the DAG bucket name and raw bucket name to DAGs via custom config options.
   # Custom options in airflow_configuration_options are accepted by MWAA
   # (see AWS MWAA docs: "Custom options" under "Using Apache Airflow configuration options")
   airflow_configuration_options = {
@@ -49,6 +49,8 @@ resource "aws_mwaa_environment" "main" {
     })
     # Custom config for DAG bucket name (read by hello_world DAG via conf.get)
     "mwaa.dag_bucket" = local.dag_bucket_name
+    # Custom config for raw bucket name (read by ingestion DAGs via conf.get)
+    "mwaa.raw_bucket" = local.raw_bucket_name
   }
 
   tags = var.tags

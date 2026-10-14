@@ -71,3 +71,34 @@ def test_hello_world_dag_structure():
     # Verify tasks exist
     task_ids = {task.task_id for task in dag.tasks}
     assert "read_variable_and_write_s3" in task_ids, "Expected task not found"
+
+
+def test_ingest_world_bank_dag_structure():
+    """Specific test for ingest_world_bank DAG structure."""
+    dag_path = DAGS_DIR / "ingest_world_bank.py"
+    assert dag_path.exists(), "ingest_world_bank.py not found"
+
+    namespace = {}
+    with open(dag_path, "r") as f:
+        code = compile(f.read(), str(dag_path), "exec")
+        exec(code, namespace)
+
+    # Find the DAG object
+    dag = None
+    for v in namespace.values():
+        if hasattr(v, "dag_id") and v.dag_id == "ingest_world_bank":
+            dag = v
+            break
+
+    assert dag is not None, "ingest_world_bank DAG not found"
+
+    # Verify basic structure
+    assert dag.dag_id == "ingest_world_bank"
+    assert dag.schedule is None  # Triggered manually or by daily_pipeline
+    assert dag.catchup is False
+    assert dag.max_active_runs == 1
+
+    # Verify tasks exist
+    task_ids = {task.task_id for task in dag.tasks}
+    expected_tasks = {"fetch_and_validate", "copy_into_bronze", "verify_bronze_load"}
+    assert expected_tasks.issubset(task_ids), f"Missing tasks: {expected_tasks - task_ids}"
