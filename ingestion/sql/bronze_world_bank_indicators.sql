@@ -52,7 +52,6 @@ FROM (
 )
 FILEFORMAT = JSON
 FORMAT_OPTIONS ('multiLine' = 'false')
-PATTERN = '*.json'
 COPY_OPTIONS (
     'mergeSchema' = 'false',
     'force' = 'false'
