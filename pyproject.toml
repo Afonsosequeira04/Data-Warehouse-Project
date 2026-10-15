@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cloud-data-platform"
+version = "0.1.0"
+description = "Cloud Data Platform - End-to-end data engineering platform"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "requests>=2.30.0",
+    "boto3>=1.34.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "responses>=0.25.0",
+]
+airflow = [
+    "apache-airflow==3.3.1",
+    "apache-airflow-providers-amazon==9.34.0",
+    "apache-airflow-providers-databricks==4.3.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["ingestion*", "orchestration*", "tests*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
+addopts = "-v"

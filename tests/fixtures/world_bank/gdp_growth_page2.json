@@ -1,0 +1,30 @@
+[
+  {
+    "page": 2,
+    "pages": 2,
+    "per_page": 500,
+    "total": 501,
+    "source": [{"id": "2", "value": "World Development Indicators"}],
+    "lastupdated": "2024-07-01"
+  },
+  [
+    {
+      "country": {"id": "ALB", "value": "Albania"},
+      "indicator": {"id": "NY.GDP.MKTP.KD.ZG", "value": "GDP growth (annual %)"},
+      "date": "2023",
+      "value": 3.1,
+      "unit": "",
+      "obs_status": "E",
+      "decimal": 1
+    },
+    {
+      "country": {"id": "AND", "value": "Andorra"},
+      "indicator": {"id": "NY.GDP.MKTP.KD.ZG", "value": "GDP growth (annual %)"},
+      "date": "2023",
+      "value": null,
+      "unit": "",
+      "obs_status": "",
+      "decimal": null
+    }
+  ]
+]

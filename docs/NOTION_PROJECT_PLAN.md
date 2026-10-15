@@ -257,20 +257,20 @@ Client logic is tested with `pytest` and recorded fixtures without MWAA running.
 
 ### Tasks
 
-- [ ] Create a source-specific API client for World Bank Indicators.
-- [ ] Implement authentication/configuration through secrets or environment variables (no auth required for World Bank).
-- [ ] Implement pagination (page + per_page).
-- [ ] Implement rate-limit handling.
-- [ ] Implement bounded retries with backoff.
-- [ ] Validate response shape.
-- [ ] Write raw JSON to the immutable S3 path (`s3://<bucket>/api/world_bank_indicators/ingest_date=YYYY-MM-DD/`).
-- [ ] Generate a batch identifier.
-- [ ] Include ingestion-date information.
-- [ ] Add technical metadata for Bronze.
-- [ ] Create the first Bronze Delta table using the mechanism accepted in ADR-001 (COPY INTO via SQL Warehouse).
-- [ ] Test a successful run.
-- [ ] Test an expected API/schema failure.
-- [ ] Test a retry/idempotency scenario.
+- [x] Create a source-specific API client for World Bank Indicators.
+- [x] Implement authentication/configuration through secrets or environment variables (no auth required for World Bank).
+- [x] Implement pagination (page + per_page).
+- [x] Implement rate-limit handling.
+- [x] Implement bounded retries with backoff.
+- [x] Validate response shape.
+- [x] Write raw JSON to the immutable S3 path (`s3://<bucket>/api/world_bank_indicators/ingest_date=YYYY-MM-DD/`).
+- [x] Generate a batch identifier.
+- [x] Include ingestion-date information.
+- [x] Add technical metadata for Bronze.
+- [x] Create the first Bronze Delta table using the mechanism accepted in ADR-001 (COPY INTO via SQL Warehouse).
+- [x] Test a successful run.
+- [x] Test an expected API/schema failure.
+- [x] Test a retry/idempotency scenario.
 
 ### Definition of Done
 

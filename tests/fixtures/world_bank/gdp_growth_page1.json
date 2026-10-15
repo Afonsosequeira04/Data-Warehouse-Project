@@ -1,0 +1,39 @@
+[
+  {
+    "page": 1,
+    "pages": 2,
+    "per_page": 500,
+    "total": 501,
+    "source": [{"id": "2", "value": "World Development Indicators"}],
+    "lastupdated": "2024-07-01"
+  },
+  [
+    {
+      "country": {"id": "ABW", "value": "Aruba"},
+      "indicator": {"id": "NY.GDP.MKTP.KD.ZG", "value": "GDP growth (annual %)"},
+      "date": "2023",
+      "value": 2.5,
+      "unit": "",
+      "obs_status": "E",
+      "decimal": 1
+    },
+    {
+      "country": {"id": "AFG", "value": "Afghanistan"},
+      "indicator": {"id": "NY.GDP.MKTP.KD.ZG", "value": "GDP growth (annual %)"},
+      "date": "2023",
+      "value": -6.2,
+      "unit": "",
+      "obs_status": "E",
+      "decimal": 1
+    },
+    {
+      "country": {"id": "AGO", "value": "Angola"},
+      "indicator": {"id": "NY.GDP.MKTP.KD.ZG", "value": "GDP growth (annual %)"},
+      "date": "2023",
+      "value": 0.8,
+      "unit": "",
+      "obs_status": "E",
+      "decimal": 1
+    }
+  ]
+]
