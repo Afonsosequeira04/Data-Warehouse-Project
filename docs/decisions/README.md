@@ -14,6 +14,7 @@ This directory contains Architecture Decision Records for the Cloud Data Platfor
 | [ADR-006](ADR-006-unity-catalog-grants-dev.md) | Unity Catalog grants in dev with single principal | Accepted |
 | [ADR-007](ADR-007-supabase-operational-source.md) | Supabase PostgreSQL as the operational source for Fivetran | Accepted |
 | [ADR-008](ADR-008-streaming-ingestion-path.md) | Optional streaming ingestion path (P8b) | Proposed |
+| [ADR-009](ADR-009-source-discovery-agent.md) | Optional source discovery agent (P12) | Proposed |
 
 ## ADR Lifecycle
 

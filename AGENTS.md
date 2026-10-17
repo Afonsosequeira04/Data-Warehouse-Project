@@ -142,7 +142,7 @@ Also resolved (ADR-007): Supabase PostgreSQL as the operational source for Fivet
 
 ## Open decisions (ADRs)
 
-These are resolved. All ADRs have been accepted by Afonso, except ADR-008 which is Proposed.
+These are resolved. All ADRs have been accepted by Afonso, except ADR-008 and ADR-009, which are Proposed.
 
 | ADR | Question | Status |
 | --- | --- | --- |
@@ -154,6 +154,7 @@ These are resolved. All ADRs have been accepted by Afonso, except ADR-008 which 
 | ADR-006 | Unity Catalog grants in dev with single principal | Accepted |
 | ADR-007 | Supabase PostgreSQL as the operational source for Fivetran | Accepted |
 | ADR-008 | Optional streaming ingestion path (P8b) | Proposed |
+| ADR-009 | Should an OpenCode agent propose new data sources, and with how much autonomy (P12)? | Proposed |
 
 Also resolved (ADR-007): Supabase PostgreSQL as the operational source for Fivetran. Tracked in `docs/data-sources.md` and `docs/business-questions.md`: the concrete API 1, API 2 and SaaS/DB sources, and the business questions the Gold layer must answer.
 
