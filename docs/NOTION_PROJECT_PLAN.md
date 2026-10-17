@@ -35,6 +35,7 @@ See `AGENTS.md` (D-001 to D-006) for the full list.
 | P9 | CI/CD with OIDC | PR checks and merge-to-main deployment (persistent stack only) |
 | P10 | AI/BI dashboards | Business and data-quality dashboards |
 | P11 | Hardening | Security, cost, idempotency, docs, evidence |
+| P12 | Source discovery agent (optional, proposed) | OpenCode agent that proposes new public Portuguese/European data sources via PRs — blocked until ADR-009 is Accepted and P9 is merged |
 
 The implementation should be portfolio-ready: reproducible, observable, secure enough for a demo environment, and easy to explain in an interview.
 
@@ -567,6 +568,52 @@ Someone unfamiliar with the project can clone it, read the documentation, unders
 
 ---
 
+# 12b. P12 - Source discovery agent (optional, proposed)
+
+**Goal:** demonstrate a governed, agent-assisted way to extend the platform with new real public Portuguese/European sources (e.g. INE, dados.gov.pt, electricity prices), without weakening the existing ingestion design.
+
+```
+Ingestion pipeline (MWAA + Databricks)
+-> YAML source specs (one per source) loaded by a generic loader
+
+Discovery agent (OpenCode on GitHub Actions, weekly, no AWS/Databricks credentials)
+-> opens source proposals, and integration PRs when permitted
+
+Afonso
+-> reviews proposals, assigns the BQ number, merges
+```
+
+The agent runs weekly on GitHub Actions, inspects public information about candidate sources, and opens pull requests. It never receives AWS or Databricks credentials; its only repository permissions are `contents: write` and `pull-requests: write`. Source secrets (API keys) live in AWS Secrets Manager and never appear in a source spec. Undocumented endpoints are flagged in the spec. A source with no documented access may be investigated with REA (github.com/morluto/rea, MIT), limited to a separate manual `workflow_dispatch` run with a user-approved URL and a pinned version — never in the scheduled job, CI, Airflow, or MWAA.
+
+### Open Questions (blocking Acceptance of ADR-009)
+
+- The YAML-spec refactor replaces per-API clients with a generic loader, which conflicts with the AGENTS.md rule "Avoid creating large generic frameworks for a portfolio project" and with the P4 task "Build the FRED client independently from the World Bank client". Accepting an option that requires it needs an explicit AGENTS.md amendment by Afonso.
+- Which model/provider runs the agent, and what spending limit applies?
+- Is REA acceptable for this repository, and which terms-of-use policy approves a target before any fetch?
+- Does the GitHub plan support environments with required reviewers for the agent's integration workflows?
+- GitHub App or `GITHUB_TOKEN` for the agent's write access?
+
+### Tasks
+
+- [ ] Choose the first real source and the business question it answers. Afonso assigns the BQ number; this chore creates no BQ (BQ-004 is reserved for P8b).
+- [ ] Refactor API ingestion to declarative YAML source specs (World Bank, FRED, new source) — only if the accepted ADR-009 option requires it.
+- [ ] Implement the discovery agent at the accepted level (option 2: propose only; option 3: propose and open integration PRs; option 4: auto-merge in dev).
+- [ ] Review agent-opened integration PRs and merge the first new source into the pipeline.
+- [ ] Capture the evidence of a real proposed source reaching Bronze.
+
+### Definition of Done
+
+An agent run proposes at least one real, publicly available source; the integration PR is reviewed and merged by Afonso; the data reaches Bronze without weakening the existing architecture; the flow is documented and reproducible.
+
+### Evidence to save
+
+- Links to the agent runs and the PRs it opened.
+- The accepted source spec, the merged PR, and the resulting Bronze table.
+
+No implementation may start until ADR-009 is Accepted by Afonso and P9 is merged.
+
+---
+
 # 13. Suggested Notion milestones
 
 Create milestone pages or checkboxes for these outcomes:
@@ -583,6 +630,7 @@ Create milestone pages or checkboxes for these outcomes:
 - [ ] **M10 - CI/CD with OIDC working** (P9)
 - [ ] **M11 - BI + data-quality dashboards working** (P10)
 - [ ] **M12 - Portfolio hardening complete** (P11)
+- [ ] **M13 - Source discovery agent (optional)** (P12)
 
 ---
 
@@ -646,6 +694,8 @@ The project is complete when all of the following are true:
 - monitoring, cost control, and failure handling are documented;
 - the README and architecture diagram describe the actual final state;
 - screenshots/logs/examples provide evidence for the major portfolio claims.
+
+P12 (source discovery agent) is an optional extension and is not part of this definition.
 
 ---
 
