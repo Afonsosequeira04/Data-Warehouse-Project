@@ -88,7 +88,7 @@ Credentials and API keys live in AWS Secrets Manager, never in the repository.
 ## Roadmap
 
 - [ ] S3, IAM and Unity Catalog (storage credential + external location)
-- [ ] World Bank ingestion → S3 → Bronze
+- [x] World Bank ingestion → S3 → Bronze
 - [ ] FRED ingestion → S3 → Bronze
 - [ ] dbt models (staging, marts, tests)
 - [ ] MWAA and the `daily_pipeline` DAG

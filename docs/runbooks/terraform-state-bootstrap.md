@@ -198,7 +198,7 @@ This updates:
 ### Set Secret Values in AWS Secrets Manager (when needed for later phases)
 
 ```bash
-# FRED API key (for P3)
+# FRED API key (for P4)
 aws secretsmanager put-secret-value \
   --secret-id cloud-data-platform/fred \
   --secret-string '{"base_url":"https://api.stlouisfed.org/fred","api_key":"<YOUR_FRED_API_KEY>"}' \

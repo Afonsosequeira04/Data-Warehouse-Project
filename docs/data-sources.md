@@ -43,7 +43,7 @@ Status values: `Not selected` | `Shortlisted` | `Selected` | `Ready`
 | **Key Endpoints** | `/series/observations?series_id={series_id}&api_key={api_key}&file_type=json&limit={limit}&offset={offset}` |
 | **Expected Volume (per run)** | ~3 series × ~260 observations (5 years monthly) = ~780 observations |
 | **Data Grain** | One observation per series + observation date |
-| **Raw S3 Path Pattern** | `s3://<bucket>/api/fred_economic_series/ingest_date=YYYY-MM-DD/<object>.json` |
+| **Raw S3 Path Pattern** | `s3://<bucket>/api/fred_economic_series/ingest_date=YYYY-MM-DD/<batch_id>/<series_id>.ndjson` |
 | **Destination** | Bronze: `<catalog>.bronze.fred_economic_series` |
 | **Status** | Selected |
 | **Notes** | Initial series: CPIAUCSL (CPI), UNRATE (unemployment rate), FEDFUNDS (federal funds rate). Historical analytical range: 5 years. API key will be provided later through the approved secret mechanism. Do not claim a key already exists. Never put credentials in Git. |
