@@ -14,10 +14,10 @@ over adding services just to make the architecture look larger.
 ## Current phase
 
 ```
-Current phase : P4 - API 2 ingestion
+Current phase : P5 - dbt Silver + Gold + tests + snapshots
 Status        : not started
-Last completed: P3 - API 1 ingestion
-Next phase    : P4 - API 2 ingestion
+Last completed: P4 - API 2 ingestion
+Next phase    : P5 - dbt Silver + Gold + tests + snapshots
 ```
 
 Rules for this block:
