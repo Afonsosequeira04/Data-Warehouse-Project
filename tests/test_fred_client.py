@@ -193,6 +193,23 @@ class TestFredClient:
         assert len(responses.calls) == 1
 
     @responses.activate
+    def test_page_with_zero_records_stops_even_when_count_is_high(
+        self, mock_fred_config
+    ):
+        """Test an empty page stops pagination even if count claims more."""
+        _register_page(
+            {"count": 100, "offset": 0, "observations": []}, offset=0
+        )
+
+        client = FredClient(mock_fred_config)
+        pages = list(client.fetch_series(SERIES_ID))
+
+        assert len(pages) == 1
+        assert pages[0].count == 100
+        assert pages[0].observations == ()
+        assert len(responses.calls) == 1
+
+    @responses.activate
     def test_short_page_without_count_stops_pagination(self, mock_fred_config):
         """Test a short page without a count ends pagination."""
         _register_page(
@@ -290,6 +307,39 @@ class TestFredClient:
 
         assert API_KEY not in caplog.text
         assert "***" in caplog.text
+
+    def test_api_key_redacted_from_urllib3_retry_logs(
+        self, mock_fred_config, caplog
+    ):
+        """Test urllib3 retry logging does not expose the api_key.
+
+        The retry strategy logs the request URL (which carries the api_key),
+        so the redacting filter must be installed on the urllib3 loggers. A
+        real connection failure is used because ``responses`` bypasses urllib3.
+        """
+        config = replace(
+            mock_fred_config,
+            base_url="http://127.0.0.1:1",
+            max_retries=1,
+            backoff_factor=0.0,
+            timeout_seconds=1,
+        )
+        FredClient(config)
+
+        for name in ("urllib3", "urllib3.util.retry", "urllib3.connectionpool"):
+            assert any(
+                isinstance(existing, fred_client_module.RedactingFilter)
+                and existing.secret == API_KEY
+                for existing in logging.getLogger(name).filters
+            )
+
+        client = FredClient(config)
+        with caplog.at_level(logging.DEBUG, logger="urllib3"):
+            with pytest.raises(FredAPIError):
+                list(client.fetch_series(SERIES_ID))
+
+        assert any(record.name.startswith("urllib3") for record in caplog.records)
+        assert API_KEY not in caplog.text
 
     def test_empty_api_key_is_rejected(self):
         """Test the client refuses to run without an api_key."""

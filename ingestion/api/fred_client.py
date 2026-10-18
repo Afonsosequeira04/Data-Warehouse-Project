@@ -154,8 +154,19 @@ class FredClient:
         return session
 
     def _install_log_redaction(self) -> None:
-        """Make sure the api_key is masked in our logs and urllib3 logs."""
-        for target in (logger, logging.getLogger("urllib3")):
+        """Make sure the api_key is masked in our logs and urllib3 logs.
+
+        urllib3 emits request URLs (which carry the api_key) from several
+        loggers, notably ``urllib3.connectionpool`` and ``urllib3.util.retry``
+        during retries, so every one of them needs the redacting filter.
+        """
+        urllib3_loggers = (
+            "urllib3",
+            "urllib3.connectionpool",
+            "urllib3.util.retry",
+            "urllib3.poolmanager",
+        )
+        for target in (logger, *(logging.getLogger(name) for name in urllib3_loggers)):
             already_installed = any(
                 isinstance(existing, RedactingFilter)
                 and existing.secret == self.config.api_key
@@ -322,6 +333,9 @@ class FredClient:
                 return
 
             page_size = len(page.observations) + len(page.rejections)
+            if page_size == 0:
+                # Empty page: no more data even if ``count`` claims otherwise.
+                return
             offset += self.config.limit
             if page.count is not None:
                 if offset >= page.count:
