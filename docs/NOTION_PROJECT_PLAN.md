@@ -292,14 +292,14 @@ A real API call produces a dated raw object in S3 and a usable Bronze table, wit
 
 ### Tasks
 
-- [ ] Build FRED client independently from World Bank client.
-- [ ] Reuse common ingestion utilities only where genuinely useful.
-- [ ] Handle FRED's pagination (limit + offset), rate limits (120 req/min), and API key auth.
-- [ ] Write FRED raw payloads to its own S3 prefix (`s3://<bucket>/api/fred_economic_series/ingest_date=YYYY-MM-DD/`).
-- [ ] Add FRED Bronze table (`<catalog>.bronze.fred_economic_series`).
-- [ ] Add validation for source-specific fields.
-- [ ] Test a bad payload/validation path.
-- [ ] Confirm both APIs can coexist in the same daily pipeline without overwriting each other's raw data.
+- [x] Build FRED client independently from World Bank client.
+- [x] Reuse common ingestion utilities only where genuinely useful.
+- [x] Handle FRED's pagination (limit + offset), rate limits (120 req/min), and API key auth.
+- [x] Write FRED raw payloads to its own S3 prefix (`s3://<bucket>/api/fred_economic_series/ingest_date=YYYY-MM-DD/`).
+- [x] Add FRED Bronze table (`<catalog>.bronze.fred_economic_series`).
+- [x] Add validation for source-specific fields.
+- [x] Test a bad payload/validation path.
+- [x] Confirm both APIs can coexist in the same daily pipeline without overwriting each other's raw data.
 
 ### Definition of Done
 
