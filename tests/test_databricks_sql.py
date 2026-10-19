@@ -66,6 +66,26 @@ FILEFORMAT = JSON FORMAT_OPTIONS ('multiLine' = 'false');
         assert "2025-01-15" in sql
         assert "s3://test-bucket/api/world_bank_indicators/ingest_date=2025-01-15/wb_test/" in sql
 
+    def test_render_sql_replaces_extra_placeholders(self):
+        """Test that source-specific placeholders render without touching defaults."""
+        from ingestion.databricks_sql import render_sql_template
+
+        sql_template = "COPY INTO t FROM '${raw_path}' ('${series_id}');"
+
+        sql = render_sql_template(
+            sql_template=sql_template,
+            catalog="dwh_dev",
+            schema="bronze",
+            raw_path="s3://test-bucket/api/fred_economic_series/ingest_date=2025-01-15/fred_test/UNRATE.ndjson",
+            batch_id="fred_test",
+            batch_date="2025-01-15",
+            extra_replacements={"${series_id}": "UNRATE"},
+        )
+
+        assert "${series_id}" not in sql
+        assert "'UNRATE'" in sql
+        assert "${catalog}" not in sql
+
 
 class TestSplitSqlStatements:
     """Tests for split_sql_statements function."""

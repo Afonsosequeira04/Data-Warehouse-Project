@@ -1,1 +1,1 @@
-"""World Bank API ingestion package."""
+"""API ingestion clients, writers, and shared config for World Bank and FRED."""

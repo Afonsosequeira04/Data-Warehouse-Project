@@ -40,15 +40,23 @@ def render_sql_template(
     raw_path: str,
     batch_id: str,
     batch_date: str,
+    extra_replacements: dict[str, str] | None = None,
 ) -> str:
-    """Render SQL template with batch parameters."""
-    return (
+    """Render SQL template with batch parameters.
+
+    ``extra_replacements`` supports source-specific placeholders such as
+    ``${series_id}`` without changing the shared batch parameters.
+    """
+    rendered = (
         sql_template.replace("${catalog}", catalog)
         .replace("${schema}", schema)
         .replace("${raw_path}", raw_path)
         .replace("${batch_id}", batch_id)
         .replace("${batch_date}", batch_date)
     )
+    for placeholder, value in (extra_replacements or {}).items():
+        rendered = rendered.replace(placeholder, value)
+    return rendered
 
 
 def split_sql_statements(sql: str) -> list[str]:
