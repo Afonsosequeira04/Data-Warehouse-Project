@@ -34,7 +34,7 @@ Notion Plan - https://app.notion.com/p/NOTION_PROJECT_PLAN-a0545b08c0b682c9adac8
 | **World Bank Indicators** | Public REST API | Airflow → S3 → Bronze |
 | **FRED Economic Series** | Public REST API (API key) | Airflow → S3 → Bronze |
 | **Supabase PostgreSQL** | Fivetran connector (PostgreSQL) | Fivetran → Databricks (schema: raw_fivetran) |
-| **Public streaming feed** | WebSocket/SSE (optional, proposed) | Local producer → Kinesis → Databricks Streaming (ADR-008) |
+| **Public streaming feed** | WebSocket/SSE | Local producer → Kinesis → Databricks Streaming (ADR-008) |
 
 ## Data Layers
 
@@ -95,7 +95,8 @@ Credentials and API keys live in AWS Secrets Manager, never in the repository.
 - [ ] Fivetran (Supabase PostgreSQL source)
 - [ ] Full Terraform and GitHub Actions
 - [ ] AI/BI dashboards (business and data quality)
-- [ ] Optional streaming path (P8b, proposed)
+- [ ] Streaming path (P8b)
+- [ ] Source discovery agent (P12)
 
 ## Costs
 
