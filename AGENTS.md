@@ -19,10 +19,10 @@ over adding services just to make the architecture look larger.
 ## Current phase
 
 ```
-Current phase : P5 - dbt Silver + Gold + tests + snapshots
+Current phase : P4b - NASA FIRMS batch ingestion
 Status        : not started
 Last completed: P4 - API 2 ingestion
-Next phase    : P5 - dbt Silver + Gold + tests + snapshots
+Next phase    : P4b - NASA FIRMS batch ingestion
 ```
 
 Rules for this block:
