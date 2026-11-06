@@ -31,11 +31,11 @@ See `AGENTS.md` (D-001 to D-006) for the full list.
 | P6 | Data quality + quarantine | Rejected records visible and explained |
 | P7 | daily_pipeline | Full DAG running in an MWAA window |
 | P8 | Fivetran ingestion path | Managed ingestion path (Supabase PostgreSQL -> Fivetran -> Databricks) |
-| P8b | Streaming path (optional, proposed) | Real-time ingestion (public feed -> Kinesis -> Databricks Streaming) — blocked until ADR-008 Accepted |
+| P8b | Streaming path | Real-time ingestion (public feed -> Kinesis -> Databricks Streaming) — blocked until ADR-008 Accepted |
 | P9 | CI/CD with OIDC | PR checks and merge-to-main deployment (persistent stack only) |
 | P10 | AI/BI dashboards | Business and data-quality dashboards |
 | P11 | Hardening | Security, cost, idempotency, docs, evidence |
-| P12 | Source discovery agent (optional, proposed) | OpenCode agent that proposes new public Portuguese/European data sources via PRs — blocked until ADR-009 is Accepted and P9 is merged |
+| P12 | Source discovery agent | OpenCode agent that proposes new public data sources of any geography — blocked until ADR-009 is Accepted and P9 is merged |
 
 The implementation should be portfolio-ready: reproducible, observable, secure enough for a demo environment, and easy to explain in an interview.
 
@@ -442,9 +442,9 @@ The Supabase project is a manual prerequisite; the AWS persistent stack only hol
 
 ---
 
-# 9b. P8b - Streaming path (optional, proposed)
+# 9b. P8b - Streaming path
 
-**Goal:** demonstrate an optional real-time ingestion path (blocked until ADR-008 is Accepted).
+**Goal:** demonstrate a real-time ingestion path (blocked until ADR-008 is Accepted).
 
 ```
 Public streaming feed (WebSocket/SSE)
@@ -464,7 +464,6 @@ Invalid messages go to S3 raw bucket prefix `quarantine/stream/<source>/`. Check
 - Databricks compute for the streaming job: serverless vs job cluster, versus the "no cluster" constraints of ADR-001/ADR-003
 - Checkpoint location (the raw external location is read-only)
 - dbt runner for streaming tables
-- Databricks plan type (workspace is Free Edition)
 - Cost per window (Kinesis + Databricks job cluster)
 
 No implementation may start until ADR-008 is Accepted by Afonso.
@@ -568,47 +567,47 @@ Someone unfamiliar with the project can clone it, read the documentation, unders
 
 ---
 
-# 12b. P12 - Source discovery agent (optional, proposed)
+# 12b. P12 - Source discovery agent
 
-**Goal:** demonstrate a governed, agent-assisted way to extend the platform with new real public Portuguese/European sources (e.g. INE, dados.gov.pt, electricity prices), without weakening the existing ingestion design.
+**Goal:** demonstrate a governed, agent-assisted way to extend the platform with new real public sources of any geography, without weakening the existing ingestion design.
 
 ```
 Ingestion pipeline (MWAA + Databricks)
--> YAML source specs (one per source) loaded by a generic loader
+-> one client per source (existing design, unchanged)
 
 Discovery agent (OpenCode on GitHub Actions, weekly, no AWS/Databricks credentials)
--> opens source proposals, and integration PRs when permitted
+-> opens a source proposal (issue or docs PR)
 
 Afonso
--> reviews proposals, assigns the BQ number, merges
+-> reviews the proposal, assigns the BQ number, integrates the accepted source
 ```
 
-The agent runs weekly on GitHub Actions, inspects public information about candidate sources, and opens pull requests. It never receives AWS or Databricks credentials; its only repository permissions are `contents: write` and `pull-requests: write`. Source secrets (API keys) live in AWS Secrets Manager and never appear in a source spec. Undocumented endpoints are flagged in the spec. A source with no documented access may be investigated with REA (github.com/morluto/rea, MIT), limited to a separate manual `workflow_dispatch` run with a user-approved URL and a pinned version — never in the scheduled job, CI, Airflow, or MWAA.
+The agent runs weekly on GitHub Actions, inspects public information about candidate sources, and opens a proposal describing the source, the business question it could answer, and its access method. It never receives AWS or Databricks credentials; its only repository permissions are `contents: write` and `pull-requests: write`. It generates no ingestion code and does not modify the pipeline. Source secrets (API keys) live in AWS Secrets Manager and never appear in a proposal. A source with no documented access may be investigated with REA (github.com/morluto/rea, MIT), limited to a separate manual `workflow_dispatch` run with a user-approved URL and a pinned version — never in the scheduled job, CI, Airflow, or MWAA.
+
+Every proposed source must satisfy the selection criteria in `docs/data-sources.md`: a real analytical need tied to an approved business question, real external data, free or free-tier access, a documented access method, a licence compatible with the project, and a volume appropriate to the portfolio scope. Geography is not a criterion.
 
 ### Open Questions (blocking Acceptance of ADR-009)
 
-- The YAML-spec refactor replaces per-API clients with a generic loader, which conflicts with the AGENTS.md rule "Avoid creating large generic frameworks for a portfolio project" and with the P4 task "Build the FRED client independently from the World Bank client". Accepting an option that requires it needs an explicit AGENTS.md amendment by Afonso.
 - Which model/provider runs the agent, and what spending limit applies?
 - Is REA acceptable for this repository, and which terms-of-use policy approves a target before any fetch?
-- Does the GitHub plan support environments with required reviewers for the agent's integration workflows?
+- Does the GitHub plan support environments with required reviewers for the agent's proposal workflow?
 - GitHub App or `GITHUB_TOKEN` for the agent's write access?
 
 ### Tasks
 
 - [ ] Choose the first real source and the business question it answers. Afonso assigns the BQ number; this chore creates no BQ (BQ-004 is reserved for P8b).
-- [ ] Refactor API ingestion to declarative YAML source specs (World Bank, FRED, new source) — only if the accepted ADR-009 option requires it.
-- [ ] Implement the discovery agent at the accepted level (option 2: propose only; option 3: propose and open integration PRs; option 4: auto-merge in dev).
-- [ ] Review agent-opened integration PRs and merge the first new source into the pipeline.
+- [ ] Implement the discovery agent at option 2 (propose only: issue or docs PR, no ingestion code).
+- [ ] Review the agent's first proposal and integrate the accepted source through the normal phase or chore flow.
 - [ ] Capture the evidence of a real proposed source reaching Bronze.
 
 ### Definition of Done
 
-An agent run proposes at least one real, publicly available source; the integration PR is reviewed and merged by Afonso; the data reaches Bronze without weakening the existing architecture; the flow is documented and reproducible.
+An agent run proposes at least one real, publicly available source of any geography; Afonso reviews the proposal and integrates the accepted source; the data reaches Bronze without weakening the existing architecture; the flow is documented and reproducible.
 
 ### Evidence to save
 
-- Links to the agent runs and the PRs it opened.
-- The accepted source spec, the merged PR, and the resulting Bronze table.
+- Links to the agent runs and the proposal it opened.
+- The integration PR for the accepted source and the resulting Bronze table.
 
 No implementation may start until ADR-009 is Accepted by Afonso and P9 is merged.
 
@@ -630,7 +629,7 @@ Create milestone pages or checkboxes for these outcomes:
 - [ ] **M10 - CI/CD with OIDC working** (P9)
 - [ ] **M11 - BI + data-quality dashboards working** (P10)
 - [ ] **M12 - Portfolio hardening complete** (P11)
-- [ ] **M13 - Source discovery agent (optional)** (P12)
+- [ ] **M13 - Source discovery agent** (P12)
 
 ---
 
@@ -692,10 +691,10 @@ The project is complete when all of the following are true:
 - secrets are handled outside source code;
 - business and data-quality dashboards exist;
 - monitoring, cost control, and failure handling are documented;
+- the streaming path is demonstrated end to end (P8b);
+- the source discovery agent proposes a real public source that is then integrated through the normal phase flow (P12);
 - the README and architecture diagram describe the actual final state;
 - screenshots/logs/examples provide evidence for the major portfolio claims.
-
-P12 (source discovery agent) is an optional extension and is not part of this definition.
 
 ---
 

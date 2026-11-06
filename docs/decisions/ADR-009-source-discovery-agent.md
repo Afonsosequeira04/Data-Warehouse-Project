@@ -1,18 +1,26 @@
-# ADR-009: Optional Source Discovery Agent (P12)
+# ADR-009: Source Discovery Agent (P12)
 
 ## Status
 
 Proposed
 
+## Direction
+
+Directed by Afonso on 2026-11-06:
+
+- P12 is a regular phase in the project roadmap and counts toward portfolio completion. It is not optional and there is no formal-skip escape hatch.
+- Discovery is not limited to Portuguese or European sources: it covers public sources of any geography, subject to the source selection criteria in `docs/data-sources.md`.
+- The intended direction is option 2: the agent only proposes sources (an issue or a docs PR). Afonso reviews and integrates accepted sources through the normal phase or chore flow. No YAML-spec refactor and no generic loader.
+
 ## Context
 
-The core platform ingests from two selected sources: World Bank (annual indicators) and FRED (economic series). Both are stable, but low-frequency for a portfolio that wants to show an active pipeline. Public Portuguese/European sources (e.g. INE, dados.gov.pt, electricity prices) publish daily or hourly data, but adding a source today means hand-writing a client, a DAG, validation, tests, and dbt models.
+The core platform ingests from two selected sources: World Bank (annual indicators) and FRED (economic series). Both are stable, but low-frequency for a portfolio that wants to show an active pipeline. Public sources of any geography (national statistics offices, open-data portals, electricity prices, transport feeds) publish daily or hourly data, but adding a source today means hand-writing a client, a DAG, validation, tests, and dbt models.
 
-The project plan includes an optional extension, P12, where an OpenCode agent runs on GitHub Actions and proposes new public sources. It has three layers:
+The project plan includes P12, where an OpenCode agent runs on GitHub Actions and proposes new public sources. It has three layers:
 
 1. **Pipeline**: MWAA + Databricks (existing architecture, unchanged)
 2. **Discovery agent**: OpenCode on GitHub Actions, weekly schedule; no AWS or Databricks credentials; repository permissions limited to `contents: write` and `pull-requests: write`
-3. **Afonso**: reviews proposals, assigns the business-question number, and merges
+3. **Afonso**: reviews the proposal, assigns the business-question number, and integrates the accepted source
 
 This ADR is Proposed. No implementation may start until it is Accepted and P9 (CI/CD with OIDC) is merged.
 
@@ -21,11 +29,10 @@ Constraints already decided elsewhere apply:
 - Secrets never enter Git (AGENTS.md); source API keys stay in AWS Secrets Manager.
 - The repository is public.
 - The agent must not replace the documented architecture or act on the production pipeline.
-- AGENTS.md warns against building large generic frameworks for a portfolio project (one of the open questions below).
 
 ## Decision Being Considered
 
-Should the project include an optional agent that discovers and proposes new public data sources (P12), and, if so, at what level of autonomy: propose only, propose plus integration PRs, or auto-merge in dev?
+Should the project include an agent that discovers and proposes new public data sources (P12), and, if so, at what level of autonomy: propose only, propose plus integration PRs, or auto-merge in dev?
 
 ## Options
 
@@ -51,7 +58,7 @@ The weekly job also generates a YAML source spec, a dbt staging model, tests, an
 
 **Trade-offs:**
 - Pros: End-to-end demonstration of governed agent-assisted delivery; a new source reaches Bronze after one review; keeps secrets and cloud access out of the agent.
-- Cons: Requires the YAML-spec refactor, which conflicts with the current client-per-API convention and the AGENTS.md warning on generic frameworks (see open questions); larger review surface per PR.
+- Cons: Requires the YAML-spec refactor, which conflicts with the current client-per-API convention and the AGENTS.md warning on generic frameworks; larger review surface per PR.
 
 ### Option 4: Agent auto-merges in dev (level 3)
 
@@ -63,10 +70,11 @@ As option 3, but the agent may merge its own PRs in a development environment or
 
 ## Open Questions (blocking Acceptance)
 
-- **YAML-spec refactor conflict**: replacing per-API clients with declarative specs conflicts with the AGENTS.md rule "Avoid creating large generic frameworks for a portfolio project" and with the P4 task "Build the FRED client independently from the World Bank client". Accepting option 3 or 4 requires an explicit AGENTS.md amendment by Afonso.
+Any proposed source must satisfy the selection criteria in `docs/data-sources.md` before it is considered: a real analytical need tied to an approved business question, real external data, free or free-tier access, a documented access method, a licence compatible with the project, and a volume appropriate to the portfolio scope. Geography is not a criterion.
+
 - **Model and provider**: which model/provider runs the agent, and what spending limit applies to the GitHub Actions job?
 - **REA acceptability**: may the agent use REA (github.com/morluto/rea, MIT) to investigate a source with no documented access, and what terms-of-use policy approves a target URL before any fetch?
-- **GitHub plan**: does the repository's plan support environments with required reviewers for the agent's integration workflows?
+- **GitHub plan**: does the repository's plan support environments with required reviewers for the agent's proposal workflow?
 - **Write access**: GitHub App installation or `GITHUB_TOKEN` for opening PRs?
 
 ## Consequences
