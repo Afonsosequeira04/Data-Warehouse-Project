@@ -4,6 +4,8 @@
 
 Accepted
 
+Amended by [ADR-012](ADR-012-supabase-source-rescope.md) (Proposed): the database remains the operational source for Fivetran, but its tables are re-scoped from the retired macro watchlist to `watch_region` and `alert_rule` for the Earth-monitoring platform.
+
 ## Context
 
 The architecture defines two distinct ingestion paths:

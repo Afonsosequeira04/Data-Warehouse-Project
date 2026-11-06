@@ -4,9 +4,14 @@
 
 This repository implements an end-to-end cloud data platform using real external data.
 
-The target architecture is AWS + Databricks with Python/Airflow API ingestion, S3 immutable raw storage,
-Databricks Delta Lake + Unity Catalog, dbt transformations, optional Fivetran ingestion, Terraform IaC,
-GitHub Actions CI/CD with OIDC, and Databricks AI/BI dashboards.
+The platform is an Earth-monitoring hazard and maritime lakehouse. It combines streaming and batch public
+sources (earthquakes, vessel positions, fires, water gauges, ocean buoys and disaster alerts) so the Gold layer
+can answer cross-source operational questions such as "which vessels are near a significant earthquake" or
+"which buoys show anomalous wave height near an active alert".
+
+The target architecture is AWS + Databricks with Python/Airflow API ingestion, always-on Python streaming
+producers on ECS Fargate, S3 immutable raw storage, Databricks Delta Lake + Unity Catalog, dbt transformations,
+optional Fivetran ingestion, Terraform IaC, GitHub Actions CI/CD with OIDC, and Databricks AI/BI dashboards.
 
 The project is a data-engineering portfolio project. Prefer a small, understandable production-style solution
 over adding services just to make the architecture look larger.
@@ -119,7 +124,13 @@ Before modifying an area, inspect the actual files and verify its current state.
 At the time of writing the repository contains documentation, Terraform (AWS persistent + Databricks stacks),
 .gitignore, and dependency lock files. No dbt project, no ingestion/orchestration code yet. Verify this rather than trusting this paragraph.
 
-The datasheet and README previously contained placeholders such as `<API 1>`, `<API 2>`, and `<SaaS/DB>`. These have been replaced with the selected sources: World Bank Indicators, FRED Economic Series, and Supabase PostgreSQL via Fivetran. Never invent that placeholders have been selected; keep explicit until a concrete source decision is recorded in `docs/data-sources.md` with status `Selected`.
+The datasheet and README previously contained placeholders such as `<API 1>`, `<API 2>`, and `<SaaS/DB>`. On
+2026-11-06 the source direction changed to an Earth-monitoring platform: EMSC (earthquakes), AISstream (vessel
+positions), NASA FIRMS (fires), USGS Water Data (gauges), NOAA buoys and GDACS (disaster alerts), plus Supabase
+PostgreSQL via Fivetran re-scoped to `watch_region` and `alert_rule`. World Bank and FRED are retired: their code
+still exists but is not part of the current design. Never invent that a source property has been verified; every
+unverified endpoint, auth, rate limit, format or licence is recorded as "To verify in spike" in
+`docs/data-sources.md`. Keep a source explicit until its entry has status `Selected` there.
 
 ## Decisions already taken
 
@@ -133,16 +144,20 @@ These are settled. Do not reverse them casually; if one must change, follow the 
 | D-004 | AWS Budgets exist from the beginning, before any expensive resource. |
 | D-005 | MWAA is used directly. There is no local Airflow / Docker Compose orchestration in this project. MWAA is treated as an ephemeral environment: created for a work window with Terraform and destroyed afterwards. |
 | D-006 | Terraform starts in P1, not at the end. AWS infrastructure is split into a persistent stack (survives destroys) and an ephemeral stack (MWAA and its networking). |
+| D-007 | The platform is an Earth-monitoring hazard and maritime lakehouse. The six sources are EMSC, AISstream, NASA FIRMS, USGS Water Data, NOAA buoys and GDACS, mixing streaming, batch and polling ingestion shapes. World Bank and FRED are retired. Supabase/Fivetran remains optional and is re-scoped to `watch_region` and `alert_rule`. |
 
 D-005 and D-006 refine the datasheet: the datasheet's "shut resources down when not in use" is implemented
 by destroying the ephemeral stack, because MWAA cannot be paused. The datasheet's flat `infra/terraform/aws/`
-becomes `aws/persistent/` and `aws/ephemeral/`.
+becomes `aws/persistent/`, `aws/ephemeral/` and, when streaming starts, `aws/streaming/`.
 
-Also resolved (ADR-007): Supabase PostgreSQL as the operational source for Fivetran.
+Also resolved (ADR-007, amended by ADR-012): Supabase PostgreSQL as the operational source for Fivetran, with
+tables `watch_region` and `alert_rule` for the Earth-monitoring platform.
 
 ## Open decisions (ADRs)
 
-These are resolved. All ADRs have been accepted by Afonso, except ADR-008 and ADR-009, which are Proposed.
+All ADRs are listed here. ADR-001 to ADR-004, ADR-006 and ADR-007 are Accepted; ADR-007 is amended by
+ADR-012 (Proposed). ADR-008, ADR-009, ADR-010, ADR-011 and ADR-012 are Proposed and must not be implemented
+until Afonso accepts them.
 
 | ADR | Question | Status |
 | --- | --- | --- |
@@ -152,20 +167,27 @@ These are resolved. All ADRs have been accepted by Afonso, except ADR-008 and AD
 | ADR-004 | MWAA operating model: creation/destruction workflow, what state must survive a destroy, networking cost options, how DAGs are validated before spending environment time. | Accepted |
 | ADR-005 | Amazon RDS PostgreSQL as the operational source for Fivetran | Superseded by ADR-007 |
 | ADR-006 | Unity Catalog grants in dev with single principal | Accepted |
-| ADR-007 | Supabase PostgreSQL as the operational source for Fivetran | Accepted |
-| ADR-008 | Optional streaming ingestion path (P8b) | Proposed |
+| ADR-007 | Supabase PostgreSQL as the operational source for Fivetran | Accepted (amended by ADR-012) |
+| ADR-008 | Streaming ingestion path (P8b): EMSC and AISstream through Kinesis into Delta | Proposed |
 | ADR-009 | Should an OpenCode agent propose new data sources, and with how much autonomy (P12)? | Proposed |
+| ADR-010 | Where do the always-on ingestion producers run (local machine, ECS Fargate, small EC2)? | Proposed |
+| ADR-011 | Compute and budget model for streaming and large-volume extensions | Proposed |
+| ADR-012 | Re-scope the Supabase operational source to `watch_region` and `alert_rule` | Proposed |
 
-Also resolved (ADR-007): Supabase PostgreSQL as the operational source for Fivetran. Tracked in `docs/data-sources.md` and `docs/business-questions.md`: the concrete API 1, API 2 and SaaS/DB sources, and the business questions the Gold layer must answer.
+The current sources and business questions live in `docs/data-sources.md` and `docs/business-questions.md`:
+the six selected sources, their ingestion mode, and the business questions the Gold layer must answer.
 
 ## Architecture
 
 ### End-to-end flow
 
 ```
-World Bank API ─┐
-                ├─> MWAA / Airflow ─> S3 immutable raw ─> Databricks Bronze
-FRED API ───────┘                                      └─> Quarantine for rejected records (boundary: ADR-002)
+Batch / polling sources (NASA FIRMS, USGS, NOAA, GDACS)
+  └─> MWAA / Airflow ─> S3 immutable raw ─> Databricks Bronze
+                                        └─> Quarantine for rejected records (boundary: ADR-002)
+
+Streaming sources (EMSC, AISstream)
+  └─> Python producers on ECS Fargate ─> Kinesis ─> Databricks Bronze (stream tables)
 
 Supabase PostgreSQL ─> Fivetran ─> Databricks (schema: raw_fivetran)
                                       │
@@ -174,8 +196,9 @@ Supabase PostgreSQL ─> Fivetran ─> Databricks (schema: raw_fivetran)
 GitHub ─> GitHub Actions (OIDC) ─> Terraform / deployment / dbt checks
 ```
 
-The mechanism that turns raw JSON in S3 into a Bronze Delta table is **COPY INTO via Databricks SQL Warehouse** (ADR-001).
-Do not assume `read_files`, streaming tables, or dbt does it.
+The mechanism that turns batch raw JSON in S3 into a Bronze Delta table is **COPY INTO via Databricks SQL Warehouse** (ADR-001).
+Do not assume `read_files`, streaming tables, or dbt does it. Streaming sources (EMSC, AISstream) follow ADR-008
+(Proposed) and land through Kinesis into Bronze stream tables once that ADR is Accepted.
 
 ### Core layers
 
@@ -189,6 +212,8 @@ Do not assume `read_files`, streaming tables, or dbt does it.
 ### Ingestion responsibilities
 
 - Python + Airflow owns API extraction, pagination, rate limiting, retries, schema validation, and writing raw JSON to S3.
+- Python streaming producers own continuous WebSocket ingestion (EMSC, AISstream) and write to Kinesis
+  once ADR-008 and ADR-010 are Accepted.
 - dbt does not own the main API ingestion. dbt starts at Bronze/Raw and transforms toward Silver/Gold.
 - Fivetran is an additional ingestion path, not a prerequisite for the core platform.
 - Airflow may coordinate Fivetran through its API, including triggering and waiting for synchronization,
@@ -203,7 +228,7 @@ Do not assume `read_files`, streaming tables, or dbt does it.
 - Prefer S3, IAM, MWAA, VPC/networking, CloudWatch Logs, Secrets Manager, and AWS Budgets as the essential AWS footprint.
 - KMS, SNS, EventBridge, and CloudTrail are optional only when there is a demonstrated need.
 - Redshift, Glue, EMR, Athena, Kinesis, Lambda, DynamoDB, ECR, ECS, and RDS are out of scope for general workloads.
-  Kinesis stays out of scope until ADR-008 is Accepted.
+  Kinesis stays out of scope until ADR-008 is Accepted, and ECS stays out of scope until ADR-010 is Accepted.
   (Consequence: Terraform state locking must not use DynamoDB. See "Terraform conventions".)
 - Secrets and credentials must never be committed to Git. Use AWS Secrets Manager or the appropriate runtime secret mechanism.
 - GitHub authentication to AWS should use OIDC. Do not add long-lived AWS access keys to GitHub Actions.
@@ -235,7 +260,7 @@ cloud-data-platform/
 │       ├── aws/
 │       │   ├── persistent/     # S3 raw + DAG buckets, IAM, Secrets Manager, Budgets
 │       │   ├── ephemeral/      # VPC/NAT, MWAA, CloudWatch log config for MWAA
-│       │   └── streaming/      # planned, P8b, not created (Kinesis, ADR-008 Proposed)
+│       │   └── streaming/      # planned, P8b, not created (Kinesis + ECS producers, ADR-008/010 Proposed)
 │       └── databricks/
 ├── docs/
 │   ├── decisions/              # ADRs
@@ -537,6 +562,8 @@ Data quality is a first-class output of the platform, not an afterthought.
 - Use MWAA in short, planned windows. Every PR that involves MWAA states the expected window length, the
   estimated cost, and the exact destroy command. Creation and deletion take time that is also billed; account for it.
 - Databricks SQL Warehouse: smallest size, short auto-stop, no leaving it running between sessions.
+- Streaming producers (ECS Fargate) and Kinesis are always-on and are not covered by the batch budget guardrail;
+  their compute and budget model is open (ADR-011, Proposed). Do not invent a monthly cap; Afonso sets it.
 - AWS Budgets and alerts must exist before the first billable apply, and be created in the persistent stack once
   Terraform manages them.
 - After a window, verify nothing is left running (console or Cost Explorer) and say so in the PR.

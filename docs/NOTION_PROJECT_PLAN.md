@@ -4,36 +4,52 @@
 
 Build and document a real-data, end-to-end cloud data platform that demonstrates:
 
-`Real APIs + SaaS/DB source -> controlled ingestion -> S3/Databricks -> Bronze -> Silver -> Gold -> data quality -> BI`
+`Public feeds (streaming + batch) -> controlled ingestion -> S3/Databricks -> Bronze -> Silver -> Gold -> data quality -> BI`
 
 with:
 
 `Terraform + GitHub Actions/OIDC + Unity Catalog + Secrets Manager + monitoring + cost controls`
 
-Revision note: this version adds a phase for the ephemeral MWAA environment, moves Terraform to the start of the
-project (persistent + ephemeral stacks), turns the open technical questions into ADRs, and adds a branch -> cleanup -> PR
-workflow. The old "P8 - Terraform" phase no longer exists: Terraform is built incrementally in P1 and P2, and reviewed in P11.
+The platform monitors natural hazards and maritime activity across sources: earthquakes and disaster alerts,
+vessel traffic, ocean buoys, river/stream gauges, and active fires. It is a data-engineering portfolio project,
+so the goal is a small, understandable production-style solution rather than a large architecture.
 
-Fixed decisions: MWAA is used directly (no local Airflow) as an ephemeral environment created and destroyed with Terraform;
-Terraform starts in P1; raw data, secrets and the budget live in a persistent stack that a destroy can never touch.
-See `AGENTS.md` (D-001 to D-006) for the full list.
+Revision note (2026-11-06): the platform was re-planned from a macroeconomic source set (World Bank Indicators,
+FRED Economic Series) to a cross-source Earth-monitoring lakehouse. Six public sources are now `Selected`:
+EMSC (earthquakes), AISstream (vessel positions), NASA FIRMS (active fires), USGS Water Data (gauges),
+NOAA buoys, and GDACS (disaster alerts). P3 and P4 were completed against the retired World Bank and FRED
+sources; they stay in this plan as completed legacy history and their evidence is kept unchanged. The current
+roadmap continues at P4b. ADR-010 (ingestion modes and producer runtime), ADR-011 (streaming compute and budget),
+and ADR-012 (re-scoped Supabase operational source) are `Proposed`; ADR-008 was rewritten for the streaming path.
+Only Afonso moves an ADR to `Accepted`.
+
+Earlier revision note: this version adds a phase for the ephemeral MWAA environment, moves Terraform to the start
+of the project (persistent + ephemeral stacks), turns the open technical questions into ADRs, and adds a
+branch -> cleanup -> PR workflow. The old "P8 - Terraform" phase no longer exists: Terraform is built
+incrementally in P1 and P2, and reviewed in P11.
+
+Fixed decisions: MWAA is used directly (no local Airflow) as an ephemeral environment created and destroyed with
+Terraform; Terraform starts in P1; raw data, secrets and the budget live in a persistent stack that a destroy can
+never touch. See `AGENTS.md` (D-001 to D-006) for the full list.
 
 ## Phase overview
 
 | Phase | Name | Main outcome |
 |---|---|---|
-| P0 | Decisions and bootstrap | **DONE** — ADRs accepted, sources and business questions chosen, guardrails ready |
-| P1 | Persistent foundation | Terraform persistent stack, S3 raw, IAM, secrets, budget, Unity Catalog |
-| P2 | Ephemeral MWAA | Repeatable create/destroy of MWAA with a hello DAG |
-| P3 | API 1 ingestion | World Bank -> S3 raw -> Bronze |
-| P4 | API 2 ingestion | FRED -> S3 raw -> Bronze |
-| P5 | dbt Silver + Gold | Models, tests, snapshots |
+| P0 | Decisions and bootstrap | **DONE** — ADRs accepted, guardrails ready. Sources and business questions later re-planned on 2026-11-06 |
+| P1 | Persistent foundation | **DONE** — Terraform persistent stack, S3 raw, IAM, secrets, budget, Unity Catalog |
+| P2 | Ephemeral MWAA | **DONE** — repeatable create/destroy of MWAA with a hello DAG |
+| P3 | API 1 ingestion (legacy) | **DONE** — World Bank Indicators -> S3 raw -> Bronze (source retired 2026-11-06) |
+| P4 | API 2 ingestion (legacy) | **DONE** — FRED -> S3 raw -> Bronze (source retired 2026-11-06) |
+| P4b | NASA FIRMS batch ingestion | First current source: scheduled HTTP batch -> S3 raw -> Bronze |
+| P4c | USGS, NOAA, GDACS micro-batch ingestion | Three more real sources -> S3 raw -> Bronze |
+| P5 | dbt Silver + Gold | Models, tests, snapshots over the batch sources (NASA FIRMS, USGS, NOAA, GDACS) |
 | P6 | Data quality + quarantine | Rejected records visible and explained |
-| P7 | daily_pipeline | Full DAG running in an MWAA window |
-| P8 | Fivetran ingestion path | Managed ingestion path (Supabase PostgreSQL -> Fivetran -> Databricks) |
-| P8b | Streaming path | Real-time ingestion (public feed -> Kinesis -> Databricks Streaming) — blocked until ADR-008 Accepted |
+| P7 | daily_pipeline | Full batch DAG running in an MWAA window |
+| P8 | Fivetran ingestion path | Managed sync of Supabase `watch_region` and `alert_rule` into Databricks (re-scoped by ADR-012) |
+| P8b | Streaming path | EMSC + AISstream -> producer -> Kinesis -> Databricks Structured Streaming (core phase; blocked until ADR-008, ADR-010 and ADR-011 are Accepted) |
 | P9 | CI/CD with OIDC | PR checks and merge-to-main deployment (persistent stack only) |
-| P10 | AI/BI dashboards | Business and data-quality dashboards |
+| P10 | AI/BI dashboards | Hazard, maritime and data-quality dashboards |
 | P11 | Hardening | Security, cost, idempotency, docs, evidence |
 | P12 | Source discovery agent | OpenCode agent that proposes new public data sources of any geography — blocked until ADR-009 is Accepted and P9 is merged |
 
@@ -56,7 +72,7 @@ Use these properties:
 | Property | Type | Suggested values |
 |---|---|---|
 | Task | Title | Task name |
-| Phase | Select | P0 Decisions, P1 Foundation, P2 MWAA, P3 API 1, P4 API 2, P5 dbt, P6 Quality, P7 Pipeline, P8 Fivetran, P9 CI/CD, P10 BI, P11 Hardening |
+| Phase | Select | P0 Decisions, P1 Foundation, P2 MWAA, P3 API 1 (legacy), P4 API 2 (legacy), P4b FIRMS, P4c Micro-batch, P5 dbt, P6 Quality, P7 Pipeline, P8 Fivetran, P8b Streaming, P9 CI/CD, P10 BI, P11 Hardening, P12 Discovery |
 | Status | Status | Not started, In progress, Blocked, Review, Done |
 | Priority | Select | Must, Should, Could |
 | Component | Multi-select | AWS, S3, IAM, Databricks, Unity Catalog, Python, Airflow/MWAA, Fivetran, dbt, Terraform, GitHub Actions, BI, Docs |
@@ -82,16 +98,20 @@ Properties:
 
 `ADR ID | Decision | Status | Date | Area | Context | Decision | Alternatives | Consequences`
 
-Use this for source selection, Fivetran usage, database choice, incremental strategy, snapshot strategy, networking decisions, and anything else that changes architecture.
+Use this for source selection, Fivetran usage, database choice, ingestion modes, runtime placement, streaming
+compute, incremental strategy, snapshot strategy, networking decisions, and anything else that changes architecture.
 
 ## Database C - Data Sources
 
 Properties:
 
-`Source | Type | Owner/Provider | API/Connector | Auth | Frequency | Grain | Expected Volume | Raw Path | Destination | Status | Notes`
+`Source | Mode | Type | Owner/Provider | API/Connector | Auth | Frequency | Grain | Expected Volume | Raw Path | Destination | Status | Notes`
 
-Status values: Not selected, Shortlisted, Selected, Ready.
-Do not mark a source "Ready" until its endpoint/connector, authentication approach, expected response shape, and destination are known.
+`Mode` is mandatory: Streaming, Batch, Micro-batch, or Managed sync.
+Status values: Not selected, Shortlisted, Selected, Ready, Retired.
+Do not mark a source "Ready" until its endpoint/connector, authentication approach, expected response shape, and
+destination are known. A property that has not been verified must say "To verify in spike"; never invent endpoints,
+rate limits or volumes.
 
 ## Database D - Portfolio Evidence
 
@@ -125,13 +145,17 @@ the current phase in `AGENTS.md`. Mirror these into Notion, never the other way 
 
 **Goal:** remove ambiguity before writing implementation code.
 
+> **Legacy (2026-11-06):** P0 was completed against World Bank Indicators, FRED and Supabase. The two macro
+> sources were retired and the business questions were replaced. This section remains as history; current source
+> decisions live in `docs/data-sources.md`, `docs/business-questions.md`, ADR-008 and ADR-010 to ADR-012.
+
 ### Repository bootstrap (OpenCode, first PR)
 
-- [ ] Inspect the repo and confirm it only contains documentation.
-- [ ] Add `.gitignore` (env files, Terraform state, dbt artifacts, profiles, caches).
-- [ ] Create `docs/decisions/` with an ADR template and index.
-- [ ] Create `docs/data-sources.md` (three rows, all `Not selected`) and `docs/business-questions.md` (empty template).
-- [ ] Create ADR-001 to ADR-004 as `Proposed` (options and trade-offs only).
+- [x] Inspect the repo and confirm it only contains documentation.
+- [x] Add `.gitignore` (env files, Terraform state, dbt artifacts, profiles, caches).
+- [x] Create `docs/decisions/` with an ADR template and index.
+- [x] Create `docs/data-sources.md` and `docs/business-questions.md`.
+- [x] Create ADR-001 to ADR-004 as `Proposed` (options and trade-offs only).
 
 ### Decisions (Afonso, with OpenCode shortlists)
 
@@ -140,31 +164,34 @@ the current phase in `AGENTS.md`. Mirror these into Notion, never the other way 
 - [x] Accept or amend ADR-003 (where dbt runs) — **Accepted: dbt from MWAA execution context against SQL Warehouse**
 - [x] Accept or amend ADR-004 (MWAA ephemeral operating model) — **Accepted: GitHub Actions create/destroy, private subnets + NAT**
 - [x] Accept ADR-005 (RDS PostgreSQL operational source for Fivetran) — **Accepted (superseded by ADR-007 on 2026-10-13)**
-- [x] Define business questions the Gold layer and dashboard must answer, **before** choosing APIs — **BQ-001, BQ-002, BQ-003 Approved**
-- [x] Shortlist and choose **API 1** — **World Bank Indicators API** (pagination, no auth)
-- [x] Shortlist and choose **API 2** — **FRED Economic Series API** (API key auth, limit/offset pagination)
-- [x] Choose the **SaaS/DB source** for Fivetran — **Amazon RDS PostgreSQL** (`macro_watchlist_db`) **(superseded by ADR-007 on 2026-10-13: now Supabase PostgreSQL)**
+- [x] Define business questions the Gold layer and dashboard must answer, **before** choosing APIs — **replaced on 2026-11-06 by BQ-001 to BQ-005**
+- [x] Shortlist and choose **API 1** — **World Bank Indicators API** (retired 2026-11-06)
+- [x] Shortlist and choose **API 2** — **FRED Economic Series API** (retired 2026-11-06)
+- [x] Choose the **SaaS/DB source** for Fivetran — **Supabase PostgreSQL** (`macro_watchlist_db`; re-scoped by ADR-012, Proposed)
 - [x] Record each source in `docs/data-sources.md` and in the Data Sources database.
 - [x] Define a rough data grain for each source.
-- [x] Define target catalog and schemas in Unity Catalog — **Catalog: `dwh_dev`; Schemas: `bronze`, `silver`, `gold`, `quarantine`, `snapshots`, `raw_fivetran` (Fivetran destination schema prefix to be confirmed in P8)**
+- [x] Define target catalog and schemas in Unity Catalog — **Catalog: `dwh_dev`; Schemas: `bronze`, `silver`, `gold`, `quarantine`, `snapshots`, `raw_fivetran`**
 - [x] Define environment naming convention (`dev` and `prod` only if actually needed).
 
 ### Manual prerequisites (Afonso)
 
 - [x] AWS: MFA on the root account, an admin identity that is not root, and an **AWS Budget with alerts** created before anything billable.
 - [x] Databricks: confirm the workspace plan/type and that it supports a storage credential and an external location on S3
-      plus a SQL Warehouse. If not, P1 changes and this must be resolved first.
+      plus a SQL Warehouse.
 - [x] Fivetran: confirm whether the Databricks destination is available on the plan; otherwise mark P8 optional.
 
-### Definition of Done
+### Definition of Done (historical)
 
 - ADR-001 to ADR-005 are `Accepted` (ADR-005 superseded by ADR-007).
-- API 1 (World Bank Indicators), API 2 (FRED), and SaaS/DB (Supabase PostgreSQL) are no longer placeholders.
-- Data sources have expected schemas/grains documented in `docs/data-sources.md`.
-- The Gold/dashboard questions (BQ-001, BQ-002, BQ-003) are defined and the chosen sources can answer them.
+- API 1 (World Bank Indicators), API 2 (FRED), and SaaS/DB (Supabase PostgreSQL) were no longer placeholders.
+- Data sources had expected schemas/grains documented in `docs/data-sources.md`.
+- The Gold/dashboard questions were defined and the chosen sources could answer them.
 - Cost guardrails exist (AWS Budget $10/month with alerts at 50%, 80%, 100% actual and 100% forecasted).
 - The Databricks workspace capability is confirmed.
 - No implementation depends on an undocumented service.
+
+The 2026-11-06 replan keeps the cost guardrail for batch sources only. Streaming and TB-scale extensions are
+covered by ADR-011 and are not bound by the $10/month guardrail or by Databricks Free Edition limits.
 
 ---
 
@@ -189,7 +216,10 @@ the current phase in `AGENTS.md`. Mirror these into Notion, never the other way 
 - [x] Resource tagging convention for cost attribution.
 - [x] Validate that no credentials are stored in Git.
 
-**Note:** The approved Supabase PostgreSQL source (`macro_watchlist_db`) is a manual prerequisite (create project, schema, tables, read-only user). The AWS persistent stack only holds the secret container (`cloud-data-platform/macro-watchlist-db`). No RDS resource is created in the persistent stack. (Supersedes the previous RDS note from ADR-005, superseded by ADR-007 on 2026-10-13)
+**Note:** The Supabase PostgreSQL source (`macro_watchlist_db`) is a manual prerequisite (create project, schema,
+tables, read-only user). The AWS persistent stack only holds the secret container. No RDS resource is created in
+the persistent stack. (Supersedes the previous RDS note from ADR-005, superseded by ADR-007 on 2026-10-13;
+re-scoped by ADR-012, Proposed.)
 
 ### Databricks / Unity Catalog tasks
 
@@ -250,9 +280,12 @@ before any real pipeline depends on it.
 
 ---
 
-# 4. P3 - World Bank ingestion: Python -> Airflow -> S3 -> Bronze
+# 4. P3 - World Bank ingestion (legacy): Python -> Airflow -> S3 -> Bronze
 
 **Goal:** complete the first real ingestion path end to end.
+
+> **Legacy (2026-11-06):** completed against World Bank Indicators, a source retired on 2026-11-06. The code and
+> evidence stay in the repository until a later chore removes the retired source. Do not extend this phase.
 
 Client logic is tested with `pytest` and recorded fixtures without MWAA running. The DAG run happens inside one planned MWAA window (see the P2 runbook).
 
@@ -286,9 +319,12 @@ A real API call produces a dated raw object in S3 and a usable Bronze table, wit
 
 ---
 
-# 5. P4 - FRED ingestion
+# 5. P4 - FRED ingestion (legacy)
 
 **Goal:** prove the architecture handles more than one API shape.
+
+> **Legacy (2026-11-06):** completed against FRED, a source retired on 2026-11-06. The code and evidence stay in
+> the repository until a later chore removes the retired source. Do not extend this phase.
 
 ### Tasks
 
@@ -307,25 +343,105 @@ Two real APIs run through the same platform pattern while preserving source-spec
 
 ---
 
+# 5b. P4b - NASA FIRMS batch ingestion
+
+**Goal:** add the first current source: a scheduled HTTP batch ingestion of active-fire detections into immutable
+S3 raw storage and Bronze, without depending on MWAA for the client tests.
+
+NASA FIRMS is the batch pattern the remaining sources follow. Read the source entry in `docs/data-sources.md`
+first; every property not verified there says "To verify in spike".
+
+### Tasks
+
+- [ ] **Spike:** verify endpoint, authentication (e.g. API key), rate limits, response format, terms/licence and
+      expected volume. Save real recorded samples (never synthetic stand-ins for the real shape) under
+      `tests/fixtures/nasa_firms_fires/` and record the findings in `docs/data-sources.md`.
+- [ ] Create a source-specific client, separate from orchestration.
+- [ ] Read credentials/configuration from environment variables or AWS Secrets Manager; never hard-code them.
+- [ ] Implement bounded retries with backoff and respect the documented rate limits.
+- [ ] Validate the response shape before writing a successful ingestion.
+- [ ] Write raw payloads to the immutable path `s3://<bucket>/api/nasa_firms_fires/ingest_date=YYYY-MM-DD/`.
+- [ ] Generate a batch identifier and include ingestion metadata.
+- [ ] Load Bronze (`dwh_dev.bronze.nasa_firms_fires`) with the mechanism accepted in ADR-001 (COPY INTO via SQL Warehouse).
+- [ ] Add source-specific field validation.
+- [ ] Test: successful run, expected schema failure, and rerun/idempotency (no raw overwrite).
+- [ ] Add the DAG task that runs the client, with a client import/parse test that runs without MWAA.
+
+### Definition of Done
+
+A real NASA FIRMS call produces dated raw objects in S3 and a usable Bronze table with the standard technical
+metadata, the spike samples and findings are committed, and the failure/retry path is tested.
+
+### Evidence to save
+
+- successful ingestion log/screenshot
+- S3 object path
+- Bronze table preview
+- spike notes and fixture paths
+- failure/retry example
+
+---
+
+# 5c. P4c - USGS, NOAA and GDACS micro-batch ingestion
+
+**Goal:** prove the ingestion pattern scales to three more real sources with different response shapes and polling
+needs, while keeping source-specific logic isolated.
+
+### Tasks
+
+For each of `usgs_water_gauges`, `noaa_ocean_buoys` and `gdacs_disaster_alerts`:
+
+- [ ] **Spike:** verify endpoint, authentication, rate limits, response format, terms/licence and expected volume;
+      save real samples under `tests/fixtures/<source_name>/`; record findings in `docs/data-sources.md`.
+- [ ] Create a source-specific client; reuse shared utilities only where genuinely useful.
+- [ ] Read credentials/configuration from environment variables or AWS Secrets Manager.
+- [ ] Implement polling for the source's natural cadence, pagination where supported, and bounded retries with backoff.
+- [ ] Validate the response shape before writing a successful ingestion.
+- [ ] Write raw payloads to `s3://<bucket>/api/<source_name>/ingest_date=YYYY-MM-DD/`.
+- [ ] Generate a batch identifier and include ingestion metadata.
+- [ ] Load Bronze (`dwh_dev.bronze.usgs_water_gauges`, `dwh_dev.bronze.noaa_ocean_buoys`,
+      `dwh_dev.bronze.gdacs_disaster_alerts`) with the mechanism accepted in ADR-001.
+- [ ] Add source-specific field validation.
+- [ ] Test: successful run, expected schema failure and rerun/idempotency.
+- [ ] Add each source's DAG task and a client import/parse test that runs without MWAA.
+
+### Definition of Done
+
+Three real sources reach Bronze without overwriting each other's raw data, each spike sample and finding is
+committed, and each source's failure/retry path is tested.
+
+### Evidence to save
+
+- successful ingestion log/screenshot per source
+- S3 object paths
+- Bronze table previews
+- spike notes and fixture paths
+- failure/retry examples
+
+---
+
 # 6. P5 - dbt Silver + Gold + tests + snapshots
 
-**Goal:** convert raw/Bronze data into analytics-ready data.
+**Goal:** convert the batch Bronze sources (NASA FIRMS, USGS, NOAA, GDACS) into analytics-ready data that answers
+BQ-001 to BQ-005. Streaming sources arrive later, in P8b.
 
 ## Silver / staging
 
-- [ ] Configure dbt Databricks adapter (connection via environment variables, no committed `profiles.yml` with real values; run location per ADR-003).
-- [ ] Create source definitions.
-- [ ] Create staging models.
+- [ ] Configure the dbt Databricks adapter (connection via environment variables, no committed `profiles.yml` with real values; run location per ADR-003).
+- [ ] Create source definitions for each batch Bronze table.
+- [ ] Create one staging model per source (FIRMS, USGS gauges, NOAA buoys, GDACS).
 - [ ] Standardize names and data types.
 - [ ] Deduplicate records where required.
-- [ ] Normalize dates, identifiers, and categorical fields.
+- [ ] Normalize dates, identifiers, coordinates and categorical fields.
 - [ ] Implement business rules that belong in transformation, not ingestion.
+- [ ] Resolve the common spatial key open question (candidate: H3; resolution to be decided in this phase) and document it.
 
 ## Gold / marts
 
-- [ ] Decide the analytical grain of each fact table.
-- [ ] Create dimension models.
-- [ ] Create fact models.
+- [ ] Decide the analytical grain of each fact table against `docs/business-questions.md` (draft grains there still need Afonso's confirmation).
+- [ ] Create dimension models (e.g. `dim_region`, `dim_fire_detection`, `dim_gauge_station`, `dim_buoy_station`, `dim_disaster_event`, `dim_alert_rule`).
+- [ ] Create fact models (e.g. `fact_fire_detection`, `fact_gauge_observation`, `fact_buoy_observation`, `fact_disaster_event`, `fact_alert_evaluation`).
+- [ ] Document how the same earthquake appearing in EMSC and GDACS will be reconciled before P8b adds EMSC.
 - [ ] Add a stable metric layer for dashboard KPIs.
 - [ ] Document business definitions.
 
@@ -340,13 +456,14 @@ Two real APIs run through the same platform pattern while preserving source-spec
 
 ## Snapshots
 
-- [ ] Identify an entity whose attribute history is meaningful.
+- [ ] Identify an entity whose attribute history is meaningful (e.g. a gauge, buoy or disaster event).
 - [ ] Implement a dbt snapshot using SCD2 semantics.
 - [ ] Verify historical versions can be reconstructed.
 
 ### Definition of Done
 
-`Bronze -> dbt Silver -> dbt Gold` builds successfully, quality tests are meaningful, and at least one historical change is represented through a snapshot.
+`Bronze -> dbt Silver -> dbt Gold` builds successfully over the batch sources, quality tests are meaningful, and
+at least one historical change is represented through a snapshot.
 
 ---
 
@@ -374,13 +491,13 @@ A controlled invalid-record scenario is visible in the Quarantine path and in th
 
 # 8. P7 - daily_pipeline on MWAA
 
-**Goal:** orchestrate the full platform with the MWAA environment proven in P2.
+**Goal:** orchestrate the full batch platform with the MWAA environment proven in P2.
 
 The environment is created for planned windows only. Each window: apply the ephemeral stack, run/observe the DAG, capture evidence, destroy.
 
 ### Tasks
 
-- [ ] Add API ingestion tasks (API 1, API 2).
+- [ ] Add batch ingestion tasks (NASA FIRMS, USGS, NOAA, GDACS).
 - [ ] Add S3 availability/check tasks.
 - [ ] Add the Bronze load step (mechanism per ADR-001).
 - [ ] Add Fivetran trigger/wait steps only when Fivetran is enabled.
@@ -394,8 +511,8 @@ The environment is created for planned windows only. Each window: apply the ephe
 
 ### Definition of Done
 
-One Airflow DAG can run the full configured pipeline with clear dependencies, retries, and observable outcomes,
-and the environment can be destroyed and rebuilt without losing the ability to run it.
+One Airflow DAG can run the full configured batch pipeline with clear dependencies, retries, and observable
+outcomes, and the environment can be destroyed and rebuilt without losing the ability to run it.
 
 ### Evidence to save
 
@@ -412,61 +529,88 @@ and the environment can be destroyed and rebuilt without losing the ability to r
 **Goal:** demonstrate a managed database ingestion strategy using:
 
 ```
-Supabase PostgreSQL
+Supabase PostgreSQL (watch_region, alert_rule)
 -> Fivetran
 -> Databricks (schema: raw_fivetran, prefix to be confirmed in P8)
 ```
 
-Fivetran is the intended second ingestion strategy, but can only be formally skipped later if the actual Fivetran plan/account does not support the Databricks destination or another documented blocker exists.
+Fivetran is the intended second ingestion strategy, but can only be formally skipped later if the actual Fivetran
+plan/account does not support the Databricks destination or another documented blocker exists. ADR-012 (Proposed)
+re-scopes the Supabase database from the old macro watchlist to hazard-monitoring configuration. The Gold alert
+logic evaluates `alert_rule` against the batch sources; `watch_region` holds the regions being watched.
+Until P8, the batch producers read a static configuration from the repository.
 
 ### Tasks
 
-- [ ] Create the Supabase project and schema `macro_watchlist` manually (outside AWS Terraform).
-- [ ] Seed `macro_watchlist_db` with `watchlist_country`, `watchlist_indicator`, `alert_rule` tables.
+- [ ] Create the Supabase project and schema manually (outside AWS Terraform).
+- [ ] Seed `macro_watchlist_db` with `watch_region` and `alert_rule` tables (design to be confirmed when ADR-012 is Accepted).
 - [ ] Create a dedicated read-only Fivetran database user in Supabase.
-- [ ] Store credentials in the `cloud-data-platform/macro-watchlist-db` secret in AWS Secrets Manager.
+- [ ] Store credentials in the AWS Secrets Manager secret for the database.
 - [ ] Configure the Fivetran PostgreSQL connector via the Supabase session pooler.
 - [ ] Configure the Databricks destination (verify Fivetran plan supports it).
 - [ ] Define `raw_fivetran` convention: `dwh_dev.raw_fivetran.<table>` (Fivetran destination schema prefix to be confirmed in P8; Unity Catalog uses three-level naming: catalog.schema.table).
 - [ ] Validate initial synchronization.
 - [ ] Validate incremental synchronization (Query-Based using `xmin`, exact cursor to verify in P8 via session pooler).
 - [ ] Integrate trigger/wait logic with Airflow.
-- [ ] Add downstream dbt staging for the ingested data.
+- [ ] Add downstream dbt staging for the ingested configuration tables.
 - [ ] Verify core pipeline remains functional if Fivetran is disabled.
 
 ### Definition of Done
 
 Fivetran demonstrates a managed ingestion path while the core AWS + Databricks + dbt pipeline remains independent.
-
 The Supabase project is a manual prerequisite; the AWS persistent stack only holds the secret container.
 
 ---
 
 # 9b. P8b - Streaming path
 
-**Goal:** demonstrate a real-time ingestion path (blocked until ADR-008 is Accepted).
+**Goal:** demonstrate a real-time ingestion path for the two streaming sources, as a regular phase of the
+portfolio (not optional). Blocked until ADR-008, ADR-010 and ADR-011 are Accepted.
 
 ```
-Public streaming feed (WebSocket/SSE)
--> Local time-boxed producer (reconnect, validation, PutRecords)
--> Kinesis Data Streams (1 shard, 24h retention; ephemeral stack, aws/streaming)
--> Databricks streaming job (Structured Streaming)
--> bronze.stream_<source>
+EMSC (WebSocket)
+AISstream (WebSocket)
+-> time-boxed producer (reconnect, validation, PutRecords; runtime per ADR-010)
+-> Kinesis Data Streams (1 shard, 24h retention; separate Terraform root)
+-> Databricks streaming job (Structured Streaming; compute per ADR-011)
+-> bronze.stream_emsc_earthquakes / bronze.stream_ais_vessel_positions
 -> dbt incremental Silver -> Gold
 ```
 
-Invalid messages go to S3 raw bucket prefix `quarantine/stream/<source>/`. Checkpoints in a non-raw location (Unity Catalog managed storage or separate checkpoint bucket). Streaming freshness shown in the data-quality dashboard.
+Invalid messages go to the S3 raw bucket prefix `quarantine/stream/<source>/`. Checkpoints live in a non-raw
+location (Unity Catalog managed storage or a separate checkpoint bucket). Streaming freshness is shown in the
+data-quality dashboard. The environment is created and destroyed manually, never by CI, and each window is
+time-boxed and cost-aware.
 
-### Open Questions (blocking Acceptance of ADR-008)
+### Tasks
 
-- Streaming source: which public WebSocket/SSE feed? (Free, sustainable, meaningful data)
-- BQ-004: What business question would this answer?
-- Databricks compute for the streaming job: serverless vs job cluster, versus the "no cluster" constraints of ADR-001/ADR-003
-- Checkpoint location (the raw external location is read-only)
-- dbt runner for streaming tables
-- Cost per window (Kinesis + Databricks job cluster)
+- [ ] **Spike per source:** verify endpoint, authentication, message format, rate limits, terms/licence and
+      expected volume; save real samples under `tests/fixtures/<source_name>/`; record findings in `docs/data-sources.md`.
+- [ ] Create one streaming client/producer per source.
+- [ ] Implement reconnection, bounded retries/backoff, validation and bounded queueing.
+- [ ] Write the producer runtime chosen in ADR-010 and its Terraform root; keep Kinesis out of the persistent stack.
+- [ ] Create the Kinesis stream and the Databricks streaming job.
+- [ ] Land messages into the Bronze stream tables with the standard technical metadata.
+- [ ] Route invalid messages to the quarantine prefix with source and batch context.
+- [ ] Add dbt incremental Silver models and Gold models on top of the stream tables.
+- [ ] Show streaming freshness and consumer health in the data-quality dashboard.
+- [ ] Run one full time-boxed window: create -> stream -> verify -> destroy, with measured cost.
+- [ ] Add a client/producer test that runs without AWS.
 
-No implementation may start until ADR-008 is Accepted by Afonso.
+### Definition of Done
+
+Both streaming sources reach Bronze end to end through Kinesis and Structured Streaming, invalid messages are
+visible in Quarantine, the Gold layer answers BQ-001 and BQ-002, the full window is created and destroyed
+manually with measured cost, and nothing billable is left running.
+
+### Evidence to save
+
+- producer and Kinesis metrics screenshots
+- streaming job run
+- Bronze and Gold previews
+- quarantine example
+- cost of the window
+- post-destroy check
 
 ---
 
@@ -483,21 +627,22 @@ No implementation may start until ADR-008 is Accepted by Afonso.
 - [ ] gitleaks/secret scanning.
 - [ ] Terraform formatting.
 - [ ] Terraform validation.
-- [ ] Terraform plan (persistent stack, ephemeral stack, Databricks).
+- [ ] Terraform plan (persistent stack, ephemeral stack, Databricks; not the streaming root unless explicitly selected).
 - [ ] DAG import test.
 
 ### Main workflow
 
 - [ ] Establish protected `main` workflow.
 - [ ] Authenticate to AWS with OIDC.
-- [ ] Deploy Terraform for the persistent stack and Databricks only. Merge to `main` must never create the ephemeral (MWAA) stack.
+- [ ] Deploy Terraform for the persistent stack and Databricks only. Merge to `main` must never create the ephemeral (MWAA) stack or the streaming stack.
 - [ ] Deploy Databricks changes.
 - [ ] Run `dbt build`.
 - [ ] Surface failures clearly.
 
 ### Definition of Done
 
-A pull request produces automated verification, and merge-to-main performs the documented deployment path without long-lived AWS keys.
+A pull request produces automated verification, and merge-to-main performs the documented deployment path
+without long-lived AWS keys.
 
 ---
 
@@ -507,13 +652,13 @@ A pull request produces automated verification, and merge-to-main performs the d
 
 ## Business dashboard
 
-Use metrics appropriate to the selected APIs, for example:
+Answer the approved business questions, for example:
 
-- revenue/value over time
-- breakdown by country/product/category
-- units/counts
-- customer counts
-- average value per transaction/order
+- recent significant earthquakes and the vessels near each one (BQ-001)
+- buoys with anomalous wave height or pressure and the vessels in the area (BQ-002)
+- gauges near or above flood thresholds, or rising fast (BQ-003)
+- active fires and their evolution by region (BQ-004)
+- GDACS orange/red events and what other sources show nearby (BQ-005)
 
 Do not force metrics that do not make sense for the final sources.
 
@@ -522,7 +667,7 @@ Do not force metrics that do not make sense for the final sources.
 Include:
 
 - pipeline status
-- latest successful batch
+- latest successful batch and latest stream checkpoint
 - rows ingested
 - rows rejected
 - failed tests
@@ -542,18 +687,18 @@ A user can understand both the business output and the health of the data pipeli
 ### Tasks
 
 - [ ] Remove secrets and accidental credentials from Git history/repository.
-- [ ] Confirm least-privilege IAM.
+- [ ] Confirm least-privilege IAM, including the producer runtime and the streaming stack.
 - [ ] Confirm OIDC workflow.
 - [ ] Confirm no raw S3 overwrite behavior.
 - [ ] Confirm retry/idempotency behavior.
 - [ ] Confirm failure alerts/logging are useful.
-- [ ] Confirm quarantine behavior.
+- [ ] Confirm quarantine behavior for batch and streaming.
 - [ ] Confirm dbt tests cover the critical models.
 - [ ] Confirm snapshot history works.
 - [ ] Review cloud cost controls, including a check that nothing billable is left running.
 - [ ] Terraform completeness review: anything created by hand is either in code or documented as manual.
-- [ ] Full rebuild test: destroy and recreate the ephemeral stack from a clean checkout and run the DAG.
-- [ ] Review dependency versions and remove unused packages.
+- [ ] Full rebuild test: destroy and recreate the ephemeral and streaming stacks from a clean checkout and run the pipelines.
+- [ ] Review dependency versions and remove unused packages, including the retired World Bank/FRED code.
 - [ ] Add architecture diagram showing the final implementation, not only the planned state.
 - [ ] Update README with a reproducible quickstart.
 - [ ] Add a "How data flows" section.
@@ -572,7 +717,7 @@ Someone unfamiliar with the project can clone it, read the documentation, unders
 **Goal:** demonstrate a governed, agent-assisted way to extend the platform with new real public sources of any geography, without weakening the existing ingestion design.
 
 ```
-Ingestion pipeline (MWAA + Databricks)
+Ingestion pipeline (MWAA + Databricks + streaming)
 -> one client per source (existing design, unchanged)
 
 Discovery agent (OpenCode on GitHub Actions, weekly, no AWS/Databricks credentials)
@@ -595,7 +740,7 @@ Every proposed source must satisfy the selection criteria in `docs/data-sources.
 
 ### Tasks
 
-- [ ] Choose the first real source and the business question it answers. Afonso assigns the BQ number; this chore creates no BQ (BQ-004 is reserved for P8b).
+- [ ] Choose the first real source and the business question it answers. Afonso assigns the BQ number; this chore creates no BQ.
 - [ ] Implement the discovery agent at option 2 (propose only: issue or docs PR, no ingestion code).
 - [ ] Review the agent's first proposal and integrate the accepted source through the normal phase or chore flow.
 - [ ] Capture the evidence of a real proposed source reaching Bronze.
@@ -617,19 +762,22 @@ No implementation may start until ADR-009 is Accepted by Afonso and P9 is merged
 
 Create milestone pages or checkboxes for these outcomes:
 
-- [ ] **M1 - Architecture locked** (P0)
-- [ ] **M2 - S3 + Unity Catalog working, built with Terraform** (P1)
-- [ ] **M3 - MWAA create/run/destroy cycle proven** (P2)
-- [ ] **M4 - First API reaches Bronze** (P3)
-- [ ] **M5 - Two APIs reach Bronze** (P4)
-- [ ] **M6 - Silver + Gold + tests working** (P5)
+- [x] **M1 - Architecture locked** (P0)
+- [x] **M2 - S3 + Unity Catalog working, built with Terraform** (P1)
+- [x] **M3 - MWAA create/run/destroy cycle proven** (P2)
+- [x] **M4 - First API reaches Bronze** (P3, legacy)
+- [x] **M5 - Two APIs reach Bronze** (P4, legacy)
+- [ ] **M5b - First current batch source (NASA FIRMS) reaches Bronze** (P4b)
+- [ ] **M5c - USGS, NOAA and GDACS reach Bronze** (P4c)
+- [ ] **M6 - Silver + Gold + tests working over the batch sources** (P5)
 - [ ] **M7 - Quarantine path working** (P6)
 - [ ] **M8 - Daily Airflow pipeline working** (P7)
 - [ ] **M9 - Fivetran path working or formally skipped with a documented reason** (P8)
-- [ ] **M10 - CI/CD with OIDC working** (P9)
-- [ ] **M11 - BI + data-quality dashboards working** (P10)
-- [ ] **M12 - Portfolio hardening complete** (P11)
-- [ ] **M13 - Source discovery agent** (P12)
+- [ ] **M10 - Streaming path demonstrated end to end** (P8b)
+- [ ] **M11 - CI/CD with OIDC working** (P9)
+- [ ] **M12 - BI + data-quality dashboards working** (P10)
+- [ ] **M13 - Portfolio hardening complete** (P11)
+- [ ] **M14 - Source discovery agent** (P12)
 
 ---
 
@@ -649,7 +797,7 @@ Task:
 
 Constraints:
 - Follow AGENTS.md, including "Permissions and safety" (no apply/destroy, no cloud mutations).
-- Follow the architecture in docs/technical_datasheet.pdf.
+- Follow the architecture in docs/technical_datasheet.pdf and the accepted ADRs.
 - Do not depend on any ADR that is still Proposed.
 - Do not change unrelated components.
 - Do not invent credentials or cloud resources that do not exist.
@@ -680,35 +828,37 @@ For source selection, stop and resolve the source decision before building sourc
 
 The project is complete when all of the following are true:
 
-- real API data is ingested into immutable S3 raw storage;
+- real data from the selected public sources is ingested into immutable S3 raw storage;
 - Bronze, Silver, Gold, Quarantine, and Snapshot layers exist where applicable;
 - dbt transformations and tests are reproducible;
-- the daily Airflow pipeline orchestrates the configured components;
+- the daily Airflow pipeline orchestrates the configured batch components;
+- the streaming path is demonstrated end to end (P8b);
 - the second ingestion strategy is demonstrated through Fivetran or explicitly documented as skipped;
 - Unity Catalog governs the Databricks objects;
-- Terraform represents the core infrastructure;
+- Terraform represents the core infrastructure, including a separate streaming root;
 - CI/CD runs checks and uses OIDC rather than long-lived AWS credentials;
 - secrets are handled outside source code;
 - business and data-quality dashboards exist;
 - monitoring, cost control, and failure handling are documented;
-- the streaming path is demonstrated end to end (P8b);
 - the source discovery agent proposes a real public source that is then integrated through the normal phase flow (P12);
 - the README and architecture diagram describe the actual final state;
 - screenshots/logs/examples provide evidence for the major portfolio claims.
 
 ---
 
-# 16. First implementation session
+# 16. Starting the replanned roadmap (2026-11-06)
 
-Start here, in this order:
+The bootstrap and P1 to P4 are historical and complete. World Bank and FRED are retired; their code is removed in a
+later dedicated chore, after the shared ingestion core is in place.
 
-1. Commit the new `AGENTS.md` and this plan to `main` (the only direct commit).
-2. Do the manual prerequisites listed in P0 (AWS Budget, MFA, non-root admin, Databricks workspace check).
-3. Run the bootstrap prompt in OpenCode on branch `chore/p0-bootstrap`. Review the PR and merge.
-4. Answer the ADR questions and accept ADR-001 to ADR-005 (all now Accepted).
-5. Write the business questions (BQ-001, BQ-002, BQ-003 now Approved), then select sources.
-6. Fill `docs/data-sources.md` and the Notion databases (World Bank, FRED, Supabase PostgreSQL now Selected).
-7. When the P0 Definition of Done is met, update "Current phase" and move to P1.
-8. Do not start MWAA, Fivetran, or CI/CD before the data contracts for the first API are understood.
+1. Review and merge the replan PR (`docs: replan around Earth-monitoring sources`).
+2. Afonso accepts or amends ADR-008, ADR-010, ADR-011 and ADR-012.
+3. Run the P4b spike for NASA FIRMS and save real samples under `tests/fixtures/nasa_firms_fires/`.
+4. Build P4b (NASA FIRMS) end to end, including Bronze.
+5. Build P4c (USGS, NOAA, GDACS) with one spike and one client per source.
+6. Move to P5 (dbt Silver + Gold) once the four batch sources reach Bronze.
+7. Do not start MWAA, Fivetran, streaming, or CI/CD before the batch data contracts are understood.
 
-**P0 is complete when all ADRs are Accepted, sources are Selected, business questions are Approved, and the documentation reflects the final architecture.**
+Schedule the later chores explicitly in the PR/backlog: remove the World Bank/FRED code after the shared ingestion
+core is extracted; rename the Supabase secrets in Terraform (plan only, Afonso applies); redraw
+`docs/project-architecture.png`; update `docs/technical_datasheet.pdf`.

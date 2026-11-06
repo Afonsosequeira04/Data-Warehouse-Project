@@ -14,7 +14,7 @@ Directed by Afonso on 2026-11-06:
 
 ## Context
 
-The core platform ingests from two selected sources: World Bank (annual indicators) and FRED (economic series). Both are stable, but low-frequency for a portfolio that wants to show an active pipeline. Public sources of any geography (national statistics offices, open-data portals, electricity prices, transport feeds) publish daily or hourly data, but adding a source today means hand-writing a client, a DAG, validation, tests, and dbt models.
+The core platform ingests from six selected public sources for an Earth-monitoring platform: EMSC (earthquakes), AISstream (vessel positions), NASA FIRMS (fires), USGS Water Data (gauges), NOAA buoys and GDACS (disaster alerts). They mix streaming, batch and polling ingestion shapes. Adding another source today means hand-writing a client or producer, a DAG or streaming stage, validation, tests, and dbt models. Public sources of any geography (national statistics offices, open-data portals, electricity prices, transport feeds) publish daily or hourly data, and expanding coverage is a natural extension of the portfolio.
 
 The project plan includes P12, where an OpenCode agent runs on GitHub Actions and proposes new public sources. It has three layers:
 
@@ -38,7 +38,7 @@ Should the project include an agent that discovers and proposes new public data 
 
 ### Option 1: No agent - sources chosen manually
 
-Keep source selection manual. New sources are chosen by Afonso, and ingestion code is written case by case, as with World Bank and FRED.
+Keep source selection manual. New sources are chosen by Afonso, and ingestion code is written case by case, as with the six current sources.
 
 **Trade-offs:**
 - Pros: No new moving parts, no model cost, no new security surface; consistent with the current client-per-API design.
@@ -54,7 +54,7 @@ A weekly GitHub Actions job runs OpenCode with a strict prompt: inspect candidat
 
 ### Option 3: Agent proposes and opens integration PRs (level 2)
 
-The weekly job also generates a YAML source spec, a dbt staging model, tests, and a DAG entry, then opens an integration PR. Requires refactoring API ingestion to declarative YAML source specs (World Bank, FRED, new source). Nothing merges without Afonso's review.
+The weekly job also generates a YAML source spec, a dbt staging model, tests, and a DAG entry, then opens an integration PR. Requires refactoring API ingestion to declarative YAML source specs (the current six sources, new source). Nothing merges without Afonso's review.
 
 **Trade-offs:**
 - Pros: End-to-end demonstration of governed agent-assisted delivery; a new source reaches Bronze after one review; keeps secrets and cloud access out of the agent.
