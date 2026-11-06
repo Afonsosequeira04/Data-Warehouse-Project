@@ -41,7 +41,7 @@ The repo is PUBLIC. Steps:
 1. Pre-push checks. If any fails, stop and report; do not push.
    - `git branch --show-current` is the phase branch, never `main`.
    - `git status --short` is empty.
-   - `git ls-files | grep -E "\.env|tfstate|tfvars|profiles\.yml"` prints nothing.
+   - `git ls-files | grep -E "\.env|tfstate|tfvars|profiles\.yml" | grep -v "\.example$"` prints nothing.
    - `git remote get-url origin` points to Afonso's repo.
 2. `git push -u origin <phase-branch>`. Never force-push. If credentials are requested or auth fails, stop and report.
 3. If `gh auth status` succeeds, run `gh pr create --base main --head <phase-branch> --title "<title>" --body-file /tmp/pr-body.md`.
@@ -270,7 +270,7 @@ One phase = one branch = one PR. Never commit directly to `main`.
 
 - Remove scratch files, debug prints, commented-out code, unused imports and unused dependencies.
 - Confirm no secrets or state are tracked: `git status`, and
-  `git ls-files | grep -E "\.env|tfstate|tfvars|profiles\.yml"` must return nothing. Run gitleaks if configured.
+  `git ls-files | grep -E "\.env|tfstate|tfvars|profiles\.yml" | grep -v "\.example$"` must return nothing. Run gitleaks if configured.
 - Run the checks that match the files changed (fmt / lint / validate / tests / dbt parse).
   Report each command with its result. Never say "should pass".
 - Tick the phase's Definition of Done in the plan; update README, ADR statuses and `docs/data-sources.md` if they changed.
@@ -350,6 +350,16 @@ The summary MUST include the raw output of:
 - `gh pr view --json url,state` (or "gh unavailable")
 
 If the branch is not on origin, or the current branch is `main`, the phase is NOT complete and the first line of the summary must say so.
+
+## Skills (on demand)
+
+Skills live in `.opencode/skills/` and are loaded with the skill tool only when Afonso asks for one or the task clearly matches it. They never override this file. Reports they produce go to `reports/`, which is git-ignored.
+
+- `pr-review` - review a change before a PR.
+- `knowledge-refresh` - compare project knowledge with code and data.
+- `test-data` - write synthetic test data and expected results.
+- `impact` - map what a schema or code change breaks.
+- `profile` - profile new sources before building on them.
 
 ## Permissions and safety
 
