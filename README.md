@@ -19,7 +19,7 @@ Notion Plan - https://app.notion.com/p/NOTION_PROJECT_PLAN-a0545b08c0b682c9adac8
 | Cloud / Storage | AWS, S3 |
 | Orchestration | Amazon MWAA (Apache Airflow) |
 | Ingestion (batch) | Python (scheduled HTTP APIs) |
-| Ingestion (streaming) | Python WebSocket producers on ECS Fargate, Amazon Kinesis (ADR-010, ADR-008) |
+| Ingestion (streaming/polling) | Python WebSocket consumers and polling loops on ECS Fargate, Amazon Kinesis (ADR-010, ADR-008) |
 | Ingestion (database) | Fivetran (Supabase PostgreSQL) |
 | Lakehouse | Databricks, Delta Lake |
 | Governance | Unity Catalog |
@@ -36,16 +36,16 @@ Notion Plan - https://app.notion.com/p/NOTION_PROJECT_PLAN-a0545b08c0b682c9adac8
 | **EMSC** (earthquakes) | WebSocket feed | Streaming | Producer → Kinesis → Databricks Streaming → Bronze (ADR-008) |
 | **AISstream** (vessel positions) | WebSocket feed | Streaming | Producer → Kinesis → Databricks Streaming → Bronze (ADR-008) |
 | **NASA FIRMS** (active fires) | Scheduled HTTP API | Batch | Airflow → S3 → Bronze |
-| **USGS Water Data** (river gauges) | HTTP polling | Micro-batch | Airflow → S3 → Bronze |
-| **NOAA** (ocean buoys) | HTTP polling | Micro-batch | Airflow → S3 → Bronze |
-| **GDACS** (disaster alerts) | RSS/API polling | Micro-batch | Airflow → S3 → Bronze |
+| **USGS Water Data** (river gauges) | HTTP polling | Polling | Container polling loop → Kinesis → Databricks Streaming → Bronze (ADR-008) |
+| **NOAA** (ocean buoys) | HTTP polling | Polling | Container polling loop → Kinesis → Databricks Streaming → Bronze (ADR-008) |
+| **GDACS** (disaster alerts) | RSS/API polling | Polling | Container polling loop → Kinesis → Databricks Streaming → Bronze (ADR-008) |
 | **Supabase PostgreSQL** | Fivetran connector (PostgreSQL) | Managed sync | Fivetran → Databricks (schema: raw_fivetran) |
 
-Streaming ingestion is proposed in ADR-008; the producers' runtime is proposed in ADR-010. Details and status per source: `docs/data-sources.md`.
+Streaming and polling ingestion is proposed in ADR-008; the producers' runtime is proposed in ADR-010. Details and status per source: `docs/data-sources.md`.
 
 ## Data Layers
 
-- **S3 Raw/Landing:** immutable source payloads, partitioned by ingestion date; streaming payloads land as micro-batches with the same guarantee
+- **S3 Raw/Landing:** immutable source payloads for the MWAA batch path, partitioned by ingestion date; streaming and polling sources do not write S3 raw
 - **Bronze:** data close to the source, with technical metadata (`_batch_id`, `_ingested_at`, `_source_file`, `_source_system`, `_batch_date`)
 - **raw_fivetran:** Fivetran-managed landing area for the operational database (schema name confirmed in P8)
 - **Silver:** types, deduplication, normalization and business rules (dbt staging)

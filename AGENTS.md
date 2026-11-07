@@ -22,7 +22,7 @@ over adding services just to make the architecture look larger.
 Current phase : P4b - NASA FIRMS batch ingestion
 Status        : not started
 Last completed: P4 - API 2 ingestion
-Next phase    : P4b - NASA FIRMS batch ingestion
+Next phase    : P4c - Always-on foundation
 ```
 
 Rules for this block:
@@ -127,7 +127,9 @@ At the time of writing the repository contains documentation, Terraform (AWS per
 The datasheet and README previously contained placeholders such as `<API 1>`, `<API 2>`, and `<SaaS/DB>`. On
 2026-11-06 the source direction changed to an Earth-monitoring platform: EMSC (earthquakes), AISstream (vessel
 positions), NASA FIRMS (fires), USGS Water Data (gauges), NOAA buoys and GDACS (disaster alerts), plus Supabase
-PostgreSQL via Fivetran re-scoped to `watch_region` and `alert_rule`. World Bank and FRED are retired: their code
+PostgreSQL via Fivetran re-scoped to `watch_region` and `alert_rule`. NASA FIRMS is the only source that runs
+through MWAA; EMSC, AISstream, USGS Water Data, NOAA buoys and GDACS run always-on in one ECS Fargate container
+(WebSocket consumers and polling loops) and publish to Kinesis. World Bank and FRED are retired: their code
 still exists but is not part of the current design. Never invent that a source property has been verified; every
 unverified endpoint, auth, rate limit, format or licence is recorded as "To verify in spike" in
 `docs/data-sources.md`. Keep a source explicit until its entry has status `Selected` there.
@@ -167,8 +169,8 @@ until Afonso accepts them.
 | ADR-004 | MWAA operating model: creation/destruction workflow, what state must survive a destroy, networking cost options, how DAGs are validated before spending environment time. | Accepted |
 | ADR-005 | Amazon RDS PostgreSQL as the operational source for Fivetran | Superseded by ADR-007 |
 | ADR-006 | Unity Catalog grants in dev with single principal | Accepted |
-| ADR-007 | Supabase PostgreSQL as the operational source for Fivetran | Accepted (amended by ADR-012) |
-| ADR-008 | Streaming ingestion path (P8b): EMSC and AISstream through Kinesis into Delta | Proposed |
+| ADR-007 | Supabase PostgreSQL as the operational source for Fivetran | Accepted (amendment proposed in ADR-012) |
+| ADR-008 | Streaming ingestion path (P4c and P8b): EMSC, AISstream, USGS Water Data, NOAA and GDACS through Kinesis into Delta | Proposed |
 | ADR-009 | Should an OpenCode agent propose new data sources, and with how much autonomy (P12)? | Proposed |
 | ADR-010 | Where do the always-on ingestion producers run (local machine, ECS Fargate, small EC2)? | Proposed |
 | ADR-011 | Compute and budget model for streaming and large-volume extensions | Proposed |
@@ -182,12 +184,13 @@ the six selected sources, their ingestion mode, and the business questions the G
 ### End-to-end flow
 
 ```
-Batch / polling sources (NASA FIRMS, USGS, NOAA, GDACS)
-  └─> MWAA / Airflow ─> S3 immutable raw ─> Databricks Bronze
+Batch source (NASA FIRMS)
+  └─> MWAA / Airflow ─> S3 immutable raw ─> COPY INTO ─> Databricks Bronze
                                         └─> Quarantine for rejected records (boundary: ADR-002)
 
-Streaming sources (EMSC, AISstream)
-  └─> Python producers on ECS Fargate ─> Kinesis ─> Databricks Bronze (stream tables)
+Streaming and polling sources (EMSC, AISstream, USGS Water Data, NOAA, GDACS)
+  └─> one Python container on ECS Fargate (WebSocket consumers + polling loops)
+        └─> Kinesis Data Streams ─> Databricks Structured Streaming ─> bronze.stream_<source>
 
 Supabase PostgreSQL ─> Fivetran ─> Databricks (schema: raw_fivetran)
                                       │
@@ -197,13 +200,14 @@ GitHub ─> GitHub Actions (OIDC) ─> Terraform / deployment / dbt checks
 ```
 
 The mechanism that turns batch raw JSON in S3 into a Bronze Delta table is **COPY INTO via Databricks SQL Warehouse** (ADR-001).
-Do not assume `read_files`, streaming tables, or dbt does it. Streaming sources (EMSC, AISstream) follow ADR-008
-(Proposed) and land through Kinesis into Bronze stream tables once that ADR is Accepted.
+Do not assume `read_files`, streaming tables, or dbt does it. Streaming and polling sources (EMSC, AISstream,
+USGS Water Data, NOAA, GDACS) follow ADR-008 (Proposed) and land through Kinesis into Bronze stream tables
+once that ADR is Accepted. They never go through MWAA or S3 raw.
 
 ### Core layers
 
-- **S3 Raw/Landing**: immutable source payloads. API ingestions create new objects per ingestion date; do not overwrite raw data.
-- **Bronze**: data kept close to source plus technical metadata: `_batch_id`, `_ingested_at`, `_source_file`, `_source_system`, `_batch_date`.
+- **S3 Raw/Landing**: immutable source payloads for the MWAA batch path (NASA FIRMS). API ingestions create new objects per ingestion date; do not overwrite raw data. Streaming and polling sources use Kinesis instead and do not write S3 raw.
+- **Bronze**: data kept close to source plus technical metadata: `_batch_id`, `_ingested_at`, `_source_file`, `_source_system`, `_batch_date`. Batch tables come from COPY INTO; streaming tables (`bronze.stream_<source>`) come from Structured Streaming and carry stream metadata instead of `_source_file`/`_batch_date`.
 - **Silver**: parsing, types, deduplication, normalization, and business rules. Implement this primarily with dbt staging models.
 - **Gold**: analytical dimensions and facts in dbt marts.
 - **Quarantine**: records rejected by validation rules; retain enough metadata to diagnose the rejection.
@@ -211,9 +215,8 @@ Do not assume `read_files`, streaming tables, or dbt does it. Streaming sources 
 
 ### Ingestion responsibilities
 
-- Python + Airflow owns API extraction, pagination, rate limiting, retries, schema validation, and writing raw JSON to S3.
-- Python streaming producers own continuous WebSocket ingestion (EMSC, AISstream) and write to Kinesis
-  once ADR-008 and ADR-010 are Accepted.
+- Python + Airflow owns extraction for the one MWAA batch source (NASA FIRMS): pagination, rate limiting, retries, schema validation, and writing raw JSON to S3.
+- Python streaming producers own continuous WebSocket ingestion (EMSC, AISstream) and polling loops (USGS Water Data, NOAA, GDACS); all five run in one container on ECS Fargate and write to Kinesis once ADR-008 and ADR-010 are Accepted.
 - dbt does not own the main API ingestion. dbt starts at Bronze/Raw and transforms toward Silver/Gold.
 - Fivetran is an additional ingestion path, not a prerequisite for the core platform.
 - Airflow may coordinate Fivetran through its API, including triggering and waiting for synchronization,
@@ -228,7 +231,8 @@ Do not assume `read_files`, streaming tables, or dbt does it. Streaming sources 
 - Prefer S3, IAM, MWAA, VPC/networking, CloudWatch Logs, Secrets Manager, and AWS Budgets as the essential AWS footprint.
 - KMS, SNS, EventBridge, and CloudTrail are optional only when there is a demonstrated need.
 - Redshift, Glue, EMR, Athena, Kinesis, Lambda, DynamoDB, ECR, ECS, and RDS are out of scope for general workloads.
-  Kinesis stays out of scope until ADR-008 is Accepted, and ECS stays out of scope until ADR-010 is Accepted.
+  Kinesis, ECS/Fargate, ECR and Firehose stay out of scope until their ADRs are Accepted: Kinesis and the
+  Structured Streaming path need ADR-008, the producer runtime needs ADR-010, and Firehose needs a later accepted ADR.
   (Consequence: Terraform state locking must not use DynamoDB. See "Terraform conventions".)
 - Secrets and credentials must never be committed to Git. Use AWS Secrets Manager or the appropriate runtime secret mechanism.
 - GitHub authentication to AWS should use OIDC. Do not add long-lived AWS access keys to GitHub Actions.

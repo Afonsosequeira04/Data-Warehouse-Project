@@ -19,7 +19,7 @@ FRED Economic Series) to a cross-source Earth-monitoring lakehouse. Six public s
 EMSC (earthquakes), AISstream (vessel positions), NASA FIRMS (active fires), USGS Water Data (gauges),
 NOAA buoys, and GDACS (disaster alerts). P3 and P4 were completed against the retired World Bank and FRED
 sources; they stay in this plan as completed legacy history and their evidence is kept unchanged. The current
-roadmap continues at P4b. ADR-010 (ingestion modes and producer runtime), ADR-011 (streaming compute and budget),
+roadmap continues at P4b. ADR-010 (always-on producer runtime), ADR-011 (streaming compute and budget),
 and ADR-012 (re-scoped Supabase operational source) are `Proposed`; ADR-008 was rewritten for the streaming path.
 Only Afonso moves an ADR to `Accepted`.
 
@@ -42,12 +42,12 @@ never touch. See `AGENTS.md` (D-001 to D-006) for the full list.
 | P3 | API 1 ingestion (legacy) | **DONE** — World Bank Indicators -> S3 raw -> Bronze (source retired 2026-11-06) |
 | P4 | API 2 ingestion (legacy) | **DONE** — FRED -> S3 raw -> Bronze (source retired 2026-11-06) |
 | P4b | NASA FIRMS batch ingestion | First current source: scheduled HTTP batch -> S3 raw -> Bronze |
-| P4c | USGS, NOAA, GDACS micro-batch ingestion | Three more real sources -> S3 raw -> Bronze |
-| P5 | dbt Silver + Gold | Models, tests, snapshots over the batch sources (NASA FIRMS, USGS, NOAA, GDACS) |
+| P4c | Always-on foundation (EMSC, USGS, NOAA, GDACS) | One container on ECS Fargate -> Kinesis -> Structured Streaming -> Bronze (blocked until ADR-008, ADR-010 and ADR-011 are Accepted) |
+| P5 | dbt Silver + Gold | Models, tests, snapshots over NASA FIRMS, EMSC, USGS, NOAA and GDACS |
 | P6 | Data quality + quarantine | Rejected records visible and explained |
-| P7 | daily_pipeline | Full batch DAG running in an MWAA window |
+| P7 | daily_pipeline | Daily MWAA DAG for FIRMS ingestion, Fivetran trigger/wait, Bronze load, dbt build and dbt test |
 | P8 | Fivetran ingestion path | Managed sync of Supabase `watch_region` and `alert_rule` into Databricks (re-scoped by ADR-012) |
-| P8b | Streaming path | EMSC + AISstream -> producer -> Kinesis -> Databricks Structured Streaming (core phase; blocked until ADR-008, ADR-010 and ADR-011 are Accepted) |
+| P8b | AISstream scale-out | AISstream producer -> Kinesis -> Databricks Structured Streaming (blocked until ADR-008, ADR-010 and ADR-011 are Accepted) |
 | P9 | CI/CD with OIDC | PR checks and merge-to-main deployment (persistent stack only) |
 | P10 | AI/BI dashboards | Hazard, maritime and data-quality dashboards |
 | P11 | Hardening | Security, cost, idempotency, docs, evidence |
@@ -72,7 +72,7 @@ Use these properties:
 | Property | Type | Suggested values |
 |---|---|---|
 | Task | Title | Task name |
-| Phase | Select | P0 Decisions, P1 Foundation, P2 MWAA, P3 API 1 (legacy), P4 API 2 (legacy), P4b FIRMS, P4c Micro-batch, P5 dbt, P6 Quality, P7 Pipeline, P8 Fivetran, P8b Streaming, P9 CI/CD, P10 BI, P11 Hardening, P12 Discovery |
+| Phase | Select | P0 Decisions, P1 Foundation, P2 MWAA, P3 API 1 (legacy), P4 API 2 (legacy), P4b FIRMS, P4c Always-on, P5 dbt, P6 Quality, P7 Pipeline, P8 Fivetran, P8b AISstream, P9 CI/CD, P10 BI, P11 Hardening, P12 Discovery |
 | Status | Status | Not started, In progress, Blocked, Review, Done |
 | Priority | Select | Must, Should, Could |
 | Component | Multi-select | AWS, S3, IAM, Databricks, Unity Catalog, Python, Airflow/MWAA, Fivetran, dbt, Terraform, GitHub Actions, BI, Docs |
@@ -107,7 +107,7 @@ Properties:
 
 `Source | Mode | Type | Owner/Provider | API/Connector | Auth | Frequency | Grain | Expected Volume | Raw Path | Destination | Status | Notes`
 
-`Mode` is mandatory: Streaming, Batch, Micro-batch, or Managed sync.
+`Mode` is mandatory: Streaming, Polling, Batch, or Managed sync.
 Status values: Not selected, Shortlisted, Selected, Ready, Retired.
 Do not mark a source "Ready" until its endpoint/connector, authentication approach, expected response shape, and
 destination are known. A property that has not been verified must say "To verify in spike"; never invent endpoints,
@@ -348,7 +348,7 @@ Two real APIs run through the same platform pattern while preserving source-spec
 **Goal:** add the first current source: a scheduled HTTP batch ingestion of active-fire detections into immutable
 S3 raw storage and Bronze, without depending on MWAA for the client tests.
 
-NASA FIRMS is the batch pattern the remaining sources follow. Read the source entry in `docs/data-sources.md`
+NASA FIRMS is the only source that follows the MWAA batch pattern. Read the source entry in `docs/data-sources.md`
 first; every property not verified there says "To verify in spike".
 
 ### Tasks
@@ -382,54 +382,67 @@ metadata, the spike samples and findings are committed, and the failure/retry pa
 
 ---
 
-# 5c. P4c - USGS, NOAA and GDACS micro-batch ingestion
+# 5c. P4c - Always-on foundation (EMSC, USGS, NOAA, GDACS)
 
-**Goal:** prove the ingestion pattern scales to three more real sources with different response shapes and polling
-needs, while keeping source-specific logic isolated.
+**Goal:** prove the always-on ingestion path with one Python container on ECS Fargate that runs a WebSocket
+consumer for EMSC and polling loops for USGS Water Data, NOAA buoys and GDACS, publishing every message to
+Kinesis and landing it in Bronze through Databricks Structured Streaming.
+
+Blocked until ADR-008, ADR-010 and ADR-011 are `Accepted`.
 
 ### Tasks
 
-For each of `usgs_water_gauges`, `noaa_ocean_buoys` and `gdacs_disaster_alerts`:
+Spike each source separately, saving real samples under `tests/fixtures/<source_name>/` and recording findings in
+`docs/data-sources.md`:
 
-- [ ] **Spike:** verify endpoint, authentication, rate limits, response format, terms/licence and expected volume;
-      save real samples under `tests/fixtures/<source_name>/`; record findings in `docs/data-sources.md`.
-- [ ] Create a source-specific client; reuse shared utilities only where genuinely useful.
-- [ ] Read credentials/configuration from environment variables or AWS Secrets Manager.
-- [ ] Implement polling for the source's natural cadence, pagination where supported, and bounded retries with backoff.
-- [ ] Validate the response shape before writing a successful ingestion.
-- [ ] Write raw payloads to `s3://<bucket>/api/<source_name>/ingest_date=YYYY-MM-DD/`.
-- [ ] Generate a batch identifier and include ingestion metadata.
-- [ ] Load Bronze (`dwh_dev.bronze.usgs_water_gauges`, `dwh_dev.bronze.noaa_ocean_buoys`,
-      `dwh_dev.bronze.gdacs_disaster_alerts`) with the mechanism accepted in ADR-001.
-- [ ] Add source-specific field validation.
-- [ ] Test: successful run, expected schema failure and rerun/idempotency.
-- [ ] Add each source's DAG task and a client import/parse test that runs without MWAA.
+- [ ] `emsc_earthquakes` (WebSocket)
+- [ ] `usgs_water_gauges` (polling)
+- [ ] `noaa_ocean_buoys` (polling)
+- [ ] `gdacs_disaster_alerts` (polling)
+
+Then:
+
+- [ ] Package one Python container image with the EMSC WebSocket consumer and the three polling loops (runtime per ADR-010).
+- [ ] Read configuration and any credentials from environment variables or AWS Secrets Manager.
+- [ ] Implement reconnection, bounded retries/backoff, validation and bounded queueing.
+- [ ] Write the producer runtime and its Terraform root; keep Kinesis and the container out of the persistent stack.
+- [ ] Create the Kinesis stream (1 shard, 24h retention) and the Databricks Structured Streaming job.
+- [ ] Land messages into `bronze.stream_emsc_earthquakes`, `bronze.stream_usgs_water_gauges`,
+      `bronze.stream_noaa_ocean_buoys` and `bronze.stream_gdacs_disaster_alerts`.
+- [ ] Route invalid messages to `s3://<bucket>/quarantine/stream/<source>/` with source and batch context.
+- [ ] Keep checkpoints in a non-raw location (Unity Catalog managed storage or a separate checkpoint bucket).
+- [ ] Deploy the container to ECS Fargate and verify it keeps running with reconnection.
+- [ ] Add producer tests that run without AWS, plus an idempotent restart check from a checkpoint.
+- [ ] Document the manual apply/destroy procedure for the streaming stack and its cost while applied.
 
 ### Definition of Done
 
-Three real sources reach Bronze without overwriting each other's raw data, each spike sample and finding is
-committed, and each source's failure/retry path is tested.
+The four always-on sources reach their `bronze.stream_*` tables end to end through Kinesis and Structured
+Streaming, invalid messages are visible in Quarantine, each spike sample and finding is committed, a restart from
+the checkpoint is verified, and the streaming stack is applied and destroyed manually without touching the
+persistent stack.
 
 ### Evidence to save
 
-- successful ingestion log/screenshot per source
-- S3 object paths
-- Bronze table previews
+- container and Kinesis metrics screenshots
+- streaming job run
+- Bronze previews per source
+- quarantine example
+- restart-from-checkpoint evidence
 - spike notes and fixture paths
-- failure/retry examples
 
 ---
 
 # 6. P5 - dbt Silver + Gold + tests + snapshots
 
-**Goal:** convert the batch Bronze sources (NASA FIRMS, USGS, NOAA, GDACS) into analytics-ready data that answers
-BQ-001 to BQ-005. Streaming sources arrive later, in P8b.
+**Goal:** convert the Bronze sources (NASA FIRMS, EMSC, USGS, NOAA, GDACS) into analytics-ready data that answers
+BQ-001 to BQ-005. AISstream arrives later, in P8b.
 
 ## Silver / staging
 
 - [ ] Configure the dbt Databricks adapter (connection via environment variables, no committed `profiles.yml` with real values; run location per ADR-003).
-- [ ] Create source definitions for each batch Bronze table.
-- [ ] Create one staging model per source (FIRMS, USGS gauges, NOAA buoys, GDACS).
+- [ ] Create source definitions for each Bronze table (batch and stream).
+- [ ] Create one staging model per source (FIRMS, EMSC earthquakes, USGS gauges, NOAA buoys, GDACS).
 - [ ] Standardize names and data types.
 - [ ] Deduplicate records where required.
 - [ ] Normalize dates, identifiers, coordinates and categorical fields.
@@ -441,7 +454,7 @@ BQ-001 to BQ-005. Streaming sources arrive later, in P8b.
 - [ ] Decide the analytical grain of each fact table against `docs/business-questions.md` (draft grains there still need Afonso's confirmation).
 - [ ] Create dimension models (e.g. `dim_region`, `dim_fire_detection`, `dim_gauge_station`, `dim_buoy_station`, `dim_disaster_event`, `dim_alert_rule`).
 - [ ] Create fact models (e.g. `fact_fire_detection`, `fact_gauge_observation`, `fact_buoy_observation`, `fact_disaster_event`, `fact_alert_evaluation`).
-- [ ] Document how the same earthquake appearing in EMSC and GDACS will be reconciled before P8b adds EMSC.
+- [ ] Document how the same earthquake appearing in EMSC and GDACS will be reconciled.
 - [ ] Add a stable metric layer for dashboard KPIs.
 - [ ] Document business definitions.
 
@@ -462,8 +475,8 @@ BQ-001 to BQ-005. Streaming sources arrive later, in P8b.
 
 ### Definition of Done
 
-`Bronze -> dbt Silver -> dbt Gold` builds successfully over the batch sources, quality tests are meaningful, and
-at least one historical change is represented through a snapshot.
+`Bronze -> dbt Silver -> dbt Gold` builds successfully over the Bronze sources (NASA FIRMS, EMSC, USGS, NOAA,
+GDACS), quality tests are meaningful, and at least one historical change is represented through a snapshot.
 
 ---
 
@@ -491,17 +504,18 @@ A controlled invalid-record scenario is visible in the Quarantine path and in th
 
 # 8. P7 - daily_pipeline on MWAA
 
-**Goal:** orchestrate the full batch platform with the MWAA environment proven in P2.
+**Goal:** orchestrate the daily batch pipeline over the MWAA environment proven in P2.
 
 The environment is created for planned windows only. Each window: apply the ephemeral stack, run/observe the DAG, capture evidence, destroy.
+The always-on sources (EMSC, USGS, NOAA, GDACS, AISstream) run continuously in their own container and are never orchestrated by MWAA.
 
 ### Tasks
 
-- [ ] Add batch ingestion tasks (NASA FIRMS, USGS, NOAA, GDACS).
-- [ ] Add S3 availability/check tasks.
-- [ ] Add the Bronze load step (mechanism per ADR-001).
+- [ ] Add the NASA FIRMS batch ingestion task.
+- [ ] Add FIRMS S3 availability/check tasks.
+- [ ] Add the FIRMS Bronze load step (mechanism per ADR-001).
 - [ ] Add Fivetran trigger/wait steps only when Fivetran is enabled.
-- [ ] Add the dbt build step (runner per ADR-003).
+- [ ] Add the dbt build step over the batch and always-on Bronze tables (runner per ADR-003).
 - [ ] Add the dbt test / data-quality step.
 - [ ] Add the final mart-availability check.
 - [ ] Configure retries, timeouts, and failure visibility.
@@ -511,8 +525,7 @@ The environment is created for planned windows only. Each window: apply the ephe
 
 ### Definition of Done
 
-One Airflow DAG can run the full configured batch pipeline with clear dependencies, retries, and observable
-outcomes, and the environment can be destroyed and rebuilt without losing the ability to run it.
+One Airflow DAG runs the daily batch pipeline (FIRMS ingestion, the optional Fivetran sync, the Bronze load, and the dbt build and dbt test) with clear dependencies, retries, and observable outcomes, and the environment can be destroyed and rebuilt without losing the ability to run it.
 
 ### Evidence to save
 
@@ -562,46 +575,43 @@ The Supabase project is a manual prerequisite; the AWS persistent stack only hol
 
 ---
 
-# 9b. P8b - Streaming path
+# 9b. P8b - AISstream scale-out
 
-**Goal:** demonstrate a real-time ingestion path for the two streaming sources, as a regular phase of the
-portfolio (not optional). Blocked until ADR-008, ADR-010 and ADR-011 are Accepted.
+**Goal:** add AISstream to the always-on foundation built in P4c, as a regular phase of the portfolio (not
+optional). Blocked until ADR-008, ADR-010 and ADR-011 are Accepted.
 
 ```
-EMSC (WebSocket)
 AISstream (WebSocket)
--> time-boxed producer (reconnect, validation, PutRecords; runtime per ADR-010)
+-> existing ECS Fargate container (new consumer alongside EMSC and the polling loops; runtime per ADR-010)
 -> Kinesis Data Streams (1 shard, 24h retention; separate Terraform root)
 -> Databricks streaming job (Structured Streaming; compute per ADR-011)
--> bronze.stream_emsc_earthquakes / bronze.stream_ais_vessel_positions
+-> bronze.stream_ais_vessel_positions
 -> dbt incremental Silver -> Gold
 ```
 
 Invalid messages go to the S3 raw bucket prefix `quarantine/stream/<source>/`. Checkpoints live in a non-raw
-location (Unity Catalog managed storage or a separate checkpoint bucket). Streaming freshness is shown in the
-data-quality dashboard. The environment is created and destroyed manually, never by CI, and each window is
-time-boxed and cost-aware.
+location (Unity Catalog managed storage or a separate checkpoint bucket). Streaming freshness and consumer health
+are shown in the data-quality dashboard. The environment is applied and destroyed manually, never by CI, and it
+runs continuously while it is applied; cost is tracked and the decision is documented.
 
 ### Tasks
 
-- [ ] **Spike per source:** verify endpoint, authentication, message format, rate limits, terms/licence and
-      expected volume; save real samples under `tests/fixtures/<source_name>/`; record findings in `docs/data-sources.md`.
-- [ ] Create one streaming client/producer per source.
+- [ ] **Spike:** verify endpoint, authentication, message format, rate limits, terms/licence and expected volume; save real samples under `tests/fixtures/aisstream_vessel_positions/`; record findings in `docs/data-sources.md`.
+- [ ] Add the AISstream consumer to the existing producer container.
 - [ ] Implement reconnection, bounded retries/backoff, validation and bounded queueing.
-- [ ] Write the producer runtime chosen in ADR-010 and its Terraform root; keep Kinesis out of the persistent stack.
-- [ ] Create the Kinesis stream and the Databricks streaming job.
-- [ ] Land messages into the Bronze stream tables with the standard technical metadata.
-- [ ] Route invalid messages to the quarantine prefix with source and batch context.
-- [ ] Add dbt incremental Silver models and Gold models on top of the stream tables.
-- [ ] Show streaming freshness and consumer health in the data-quality dashboard.
-- [ ] Run one full time-boxed window: create -> stream -> verify -> destroy, with measured cost.
-- [ ] Add a client/producer test that runs without AWS.
+- [ ] Publish messages to the Kinesis stream created in P4c.
+- [ ] Land messages into `bronze.stream_ais_vessel_positions` with the standard technical metadata.
+- [ ] Route invalid messages to the quarantine prefix with source and ingestion context.
+- [ ] Add dbt incremental Silver models and Gold models on top of the AIS Bronze table and the spatial joins needed by BQ-001 and BQ-002.
+- [ ] Show AISstream freshness and consumer health in the data-quality dashboard.
+- [ ] Run one apply -> stream -> verify -> destroy cycle with measured cost.
+- [ ] Add a consumer test that runs without AWS.
 
 ### Definition of Done
 
-Both streaming sources reach Bronze end to end through Kinesis and Structured Streaming, invalid messages are
-visible in Quarantine, the Gold layer answers BQ-001 and BQ-002, the full window is created and destroyed
-manually with measured cost, and nothing billable is left running.
+AISstream reaches Bronze end to end through Kinesis and Structured Streaming, invalid messages are visible in
+Quarantine, the Gold layer answers BQ-002 and completes BQ-001, the stack is applied and destroyed manually with
+measured cost, and nothing billable is left running.
 
 ### Evidence to save
 
@@ -609,7 +619,7 @@ manually with measured cost, and nothing billable is left running.
 - streaming job run
 - Bronze and Gold previews
 - quarantine example
-- cost of the window
+- cost while the stack is applied
 - post-destroy check
 
 ---
@@ -768,12 +778,12 @@ Create milestone pages or checkboxes for these outcomes:
 - [x] **M4 - First API reaches Bronze** (P3, legacy)
 - [x] **M5 - Two APIs reach Bronze** (P4, legacy)
 - [ ] **M5b - First current batch source (NASA FIRMS) reaches Bronze** (P4b)
-- [ ] **M5c - USGS, NOAA and GDACS reach Bronze** (P4c)
-- [ ] **M6 - Silver + Gold + tests working over the batch sources** (P5)
+- [ ] **M5c - EMSC, USGS, NOAA and GDACS reach Bronze** (P4c)
+- [ ] **M6 - Silver + Gold + tests working over the batch and always-on sources** (P5)
 - [ ] **M7 - Quarantine path working** (P6)
 - [ ] **M8 - Daily Airflow pipeline working** (P7)
 - [ ] **M9 - Fivetran path working or formally skipped with a documented reason** (P8)
-- [ ] **M10 - Streaming path demonstrated end to end** (P8b)
+- [ ] **M10 - Always-on streaming path demonstrated end to end** (P4c foundation, P8b AISstream)
 - [ ] **M11 - CI/CD with OIDC working** (P9)
 - [ ] **M12 - BI + data-quality dashboards working** (P10)
 - [ ] **M13 - Portfolio hardening complete** (P11)
@@ -828,11 +838,11 @@ For source selection, stop and resolve the source decision before building sourc
 
 The project is complete when all of the following are true:
 
-- real data from the selected public sources is ingested into immutable S3 raw storage;
+- real data from the selected public sources is ingested into immutable raw storage (S3 raw for the MWAA batch source, Kinesis for the always-on sources);
 - Bronze, Silver, Gold, Quarantine, and Snapshot layers exist where applicable;
 - dbt transformations and tests are reproducible;
 - the daily Airflow pipeline orchestrates the configured batch components;
-- the streaming path is demonstrated end to end (P8b);
+- the always-on streaming path is demonstrated end to end (P4c foundation, P8b AISstream);
 - the second ingestion strategy is demonstrated through Fivetran or explicitly documented as skipped;
 - Unity Catalog governs the Databricks objects;
 - Terraform represents the core infrastructure, including a separate streaming root;
@@ -855,9 +865,9 @@ later dedicated chore, after the shared ingestion core is in place.
 2. Afonso accepts or amends ADR-008, ADR-010, ADR-011 and ADR-012.
 3. Run the P4b spike for NASA FIRMS and save real samples under `tests/fixtures/nasa_firms_fires/`.
 4. Build P4b (NASA FIRMS) end to end, including Bronze.
-5. Build P4c (USGS, NOAA, GDACS) with one spike and one client per source.
-6. Move to P5 (dbt Silver + Gold) once the four batch sources reach Bronze.
-7. Do not start MWAA, Fivetran, streaming, or CI/CD before the batch data contracts are understood.
+5. Build P4c in two steps: the always-on foundation (container, Kinesis, Structured Streaming) and then the EMSC, USGS, NOAA and GDACS producers, with one spike per source.
+6. Move to P5 (dbt Silver + Gold) once NASA FIRMS and the four always-on sources reach Bronze.
+7. Do not start Fivetran, AISstream, or CI/CD before the batch data contracts are understood.
 
 Schedule the later chores explicitly in the PR/backlog: remove the World Bank/FRED code after the shared ingestion
 core is extracted; rename the Supabase secrets in Terraform (plan only, Afonso applies); redraw
