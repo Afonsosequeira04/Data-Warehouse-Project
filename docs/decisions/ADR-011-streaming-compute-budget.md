@@ -10,16 +10,16 @@ The original platform was designed around a small, batch-only footprint:
 
 - Six-month budget guardrail of about US$10/month for the persistent AWS stack.
 - Databricks Free Edition for the workspace and SQL Warehouse.
-- MWAA and a NAT Gateway used only in short, planned windows (ADR-004).
+- MWAA and a NAT Gateway used only in short, deliberate work windows (ADR-004).
 
-The replanned platform keeps those constraints for the batch path: the four batch/micro-batch sources (NASA FIRMS, USGS Water Data, NOAA buoys, GDACS) must still run inside the small budget. Two new requirements break that envelope:
+The replanned platform keeps those constraints for the batch path: only NASA FIRMS still runs inside the small budget. The other five sources are always-on and break that envelope:
 
-1. **Streaming** (EMSC, AISstream) needs an always-running producer (ADR-010, Proposed), a Kinesis stream with 24-hour retention, a Databricks Structured Streaming job, and checkpoints. None of these are covered by the batch guardrail, and the always-on producer cannot be turned off between runs without abandoning the "near-real-time" claim.
+1. **Always-on ingestion** (EMSC, AISstream, USGS Water Data, NOAA buoys, GDACS) needs a producer container (ADR-010, Proposed), a Kinesis stream with 24-hour retention, a Databricks Structured Streaming job, and checkpoints. None of these are covered by the batch guardrail, and the producers cannot be turned off without abandoning the freshness claim.
 2. **Large-volume extensions** (for example, a wider FIRMS area, denser vessel traffic, or longer retention) can exceed Free Edition and TB-scale assumptions.
 
-Afonso has directed that streaming and the large-volume extensions are **not bound by the US$10/month guardrail or by Free Edition limits**. What has not been decided is which compute tier and which budget envelope govern them, and how spend is stopped when a window ends.
+Afonso has directed that always-on streaming and the large-volume extensions are **not bound by the US$10/month guardrail or by Free Edition limits**. What has not been decided is which compute tier and which budget envelope govern them, and how spend is stopped when the streaming root is destroyed.
 
-Current state of the account matters: Databricks Free Edition has usage limits, and the AWS account has budgets and alerts (per the persistent stack). This ADR must not invent monthly figures. The cap is **to be set by Afonso**, based on real prices measured during the first streaming window.
+Current state of the account matters: Databricks Free Edition has usage limits, and the AWS account has budgets and alerts (per the persistent stack). This ADR must not invent monthly figures. The cap is **to be set by Afonso**, based on real prices measured while the streaming root is applied.
 
 ## Decision Being Considered
 
@@ -27,13 +27,13 @@ Which compute tier (workspace/SQL/Jobs) should run streaming and large-volume wo
 
 ## Options
 
-### Option 1: Keep Free Edition, smallest compute, per-window caps
+### Option 1: Keep Free Edition, smallest compute, monthly cap and manual stop
 
-Keep Databricks Free Edition and the smallest available compute for the streaming job; run streaming only in planned windows; set a per-window budget cap and tear everything down afterwards.
+Keep Databricks Free Edition and the smallest available compute for the streaming job; run streaming while the streaming root is applied; set a monthly budget cap and tear everything down to stop spend.
 
 **Trade-offs:**
 - Pros: No new Databricks spend commitment; consistent with the existing portfolio budget story; forces a clean start/stop runbook.
-- Cons: Free Edition limits may block a 24/7 streaming job or the required Kinesis connector behavior; per-window caps conflict with "always-on" freshness; the platform may spend more time being rebuilt than running.
+- Cons: Free Edition limits may block a 24/7 streaming job or the required Kinesis connector behavior; a monthly cap plus manual stop still requires someone to notice the budget alert; the platform may spend more time being rebuilt than running.
 - Best use: proving the streaming path cheaply before committing to paid compute.
 
 ### Option 2: Paid workspace tier with serverless/Jobs compute
@@ -47,7 +47,7 @@ Move the Databricks workspace (or only the streaming workload) to a paid tier wi
 
 ### Option 3: No fixed cap, alerts only
 
-Run the streaming and large-volume work with budget alerts but no hard monthly cap, relying on Afonso to stop resources at the end of each window.
+Run the streaming and large-volume work with budget alerts but no hard monthly cap, relying on Afonso to notice the alerts and destroy the streaming root manually.
 
 **Trade-offs:**
 - Pros: Maximum flexibility for spikes and experiments; no artificial ceiling on a portfolio demonstration.
@@ -64,8 +64,8 @@ Run the streaming and large-volume work with budget alerts but no hard monthly c
 ### Cost
 
 - The batch guardrail (about US$10/month) stays in force for the batch path only.
-- The streaming/large-volume envelope is separate. The exact cap is **to be set by Afonso** after the first measured window. This ADR does not assume a figure.
-- Every streaming window must state the expected duration, the resources that bill during it, and the exact stop/destroy commands. Creation and deletion time also bills.
+- The streaming/large-volume envelope is separate. The exact monthly cap is **to be set by Afonso** after the first measured period. This ADR does not assume a figure.
+- Every time the streaming root is applied, the expected resources and the exact stop/destroy commands must be documented. Creation and deletion time also bills.
 
 ### Operations
 
@@ -96,9 +96,9 @@ Run the streaming and large-volume work with budget alerts but no hard monthly c
 
 ## Related
 
-- ADR-008: Streaming ingestion path (EMSC + AISstream → Kinesis → Databricks)
+- ADR-008: Streaming ingestion path (EMSC, AISstream, USGS Water Data, NOAA buoys, GDACS → Kinesis → Databricks)
 - ADR-010: Where the always-on ingestion producers run (Proposed)
 - ADR-004: MWAA ephemeral operating model and window costs
 - ADR-006: Unity Catalog grants in dev (permissions if the Databricks tier changes)
-- `docs/NOTION_PROJECT_PLAN.md`: P8b streaming phase and budget rules
+- `docs/NOTION_PROJECT_PLAN.md`: P4c always-on foundation, P8b AISstream scale-out, and budget rules
 - `AGENTS.md`: "Monitoring and cost control"
