@@ -7,7 +7,7 @@ description: Use when a client, DAG task, SQL file or dbt model needs tests, to 
 
 The job: small synthetic fixtures with the edge cases, and the expected result decided before the code is run.
 
-Input: the function, task, SQL file or model under test (for example `ingestion/api/fred_client.py`).
+Input: the function, task, SQL file or model under test (for example `ingestion/core/http.py`).
 
 ## Ground rules
 
