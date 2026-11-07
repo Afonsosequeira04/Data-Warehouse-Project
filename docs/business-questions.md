@@ -12,7 +12,7 @@ The chosen sources must collectively enable answering these questions. The quest
 
 **Question:**
 
-Which significant recent earthquakes occurred, and which vessels were near each event?
+Which significant earthquakes happened recently, and how many vessels were near each at the time?
 
 **Domain:**
 
@@ -44,6 +44,10 @@ rolling last 24-72 hours for live events, with longer history where retained
 **Sources:**
 
 EMSC (streaming) + AISstream (streaming)
+
+**Available from phase:**
+
+Streamed earthquakes from P4c; vessel proximity from P8b.
 
 **Status:**
 
@@ -86,7 +90,11 @@ rolling recent window, with historical baseline built from the retained history
 
 **Sources:**
 
-NOAA (micro-batch) + AISstream (streaming)
+NOAA (polling) + AISstream (streaming)
+
+**Available from phase:**
+
+From P4c for buoys; vessels after P8b.
 
 **Status:**
 
@@ -129,7 +137,11 @@ latest available observation plus the recent window needed for rate of change
 
 **Sources:**
 
-USGS Water Data (micro-batch) + `macro_watchlist_db` alert rules (Supabase PostgreSQL via Fivetran, re-scoped by ADR-012)
+USGS Water Data (polling) + `macro_watchlist_db` alert rules (Supabase PostgreSQL via Fivetran, re-scoped by ADR-012)
+
+**Available from phase:**
+
+P4c/P5 (observations P4c, alert evaluation P5).
 
 **Status:**
 
@@ -173,6 +185,10 @@ recent days for active fires, plus retained history for evolution
 
 NASA FIRMS (batch)
 
+**Available from phase:**
+
+P4b/P5.
+
 **Status:**
 
 Approved (grain, dimensions and metrics draft)
@@ -213,7 +229,11 @@ active events, with retained history for post-event review
 
 **Sources:**
 
-GDACS (micro-batch) + all other sources for corroboration
+GDACS (polling) + all other sources for corroboration
+
+**Available from phase:**
+
+P5, complete after P8b.
 
 **Status:**
 
@@ -263,4 +283,4 @@ Model names are indicative and may change in the dbt phase.
 - Do not invent business questions that are not already specified by project documentation
 - Keep the list small (5 core questions) for portfolio scope
 - Each question should be answerable by a single dashboard tile or a small set of related tiles
-- The technical datasheet and README reflect the current selected sources: EMSC, AISstream, NASA FIRMS, USGS Water Data, NOAA, GDACS, and Supabase PostgreSQL via Fivetran
+- The technical datasheet and architecture image are updated in a later chore.
