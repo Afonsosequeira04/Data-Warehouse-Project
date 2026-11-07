@@ -5,7 +5,7 @@ apache-airflow==3.3.1
 # Providers needed by hello_world DAG
 apache-airflow-providers-amazon==9.34.0
 
-# Provider needed by ingest_world_bank DAG
+# Provider used by the Bronze COPY INTO load tasks
 apache-airflow-providers-databricks
 
 # HTTP mocking for API client tests

@@ -23,7 +23,7 @@ Input: a folder, a file or a sample, for example a recorded JSON payload, a CSV 
 2. Schema: fields, types, row counts, nested structures, and differences between pages or files (schema drift).
 3. Quality: nulls, empty or constant fields, duplicate rows, and whether the intended key (see the grain in `docs/data-sources.md`) is unique.
 4. Bad records: corrupt records, values out of range, placeholder values the source uses for "no value".
-5. Relationships: for every key that should match another source (for example watchlist countries against World Bank country codes), the orphans on each side.
+5. Relationships: for every key that should match another source (for example a station identifier against a station reference list), the orphans on each side.
 6. Gaps: missing years, dates or periods; series that never change; how the source marks a deleted or revised row.
 7. Compare with `docs/data-sources.md`: expected grain, volume and fields against what arrived.
 8. Rank the findings. Each one has the rows it affects and the decision it needs, marked for one of: ingestion validation (structural), quarantine or dbt rule (semantic, see ADR-002), dbt staging, or documentation.
