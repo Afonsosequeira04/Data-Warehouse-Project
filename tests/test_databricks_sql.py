@@ -38,8 +38,8 @@ class TestRenderSqlTemplate:
         from ingestion.databricks_sql import render_sql_template
 
         sql_template = """
-CREATE TABLE IF NOT EXISTS ${catalog}.${schema}.world_bank_indicators (country_id STRING);
-COPY INTO ${catalog}.${schema}.world_bank_indicators FROM '${raw_path}'
+CREATE TABLE IF NOT EXISTS ${catalog}.${schema}.example_source (country_id STRING);
+COPY INTO ${catalog}.${schema}.example_source FROM '${raw_path}'
 FILEFORMAT = JSON FORMAT_OPTIONS ('multiLine' = 'false');
 """
 
@@ -47,8 +47,8 @@ FILEFORMAT = JSON FORMAT_OPTIONS ('multiLine' = 'false');
             sql_template=sql_template,
             catalog="dwh_dev",
             schema="bronze",
-            raw_path="s3://test-bucket/api/world_bank_indicators/ingest_date=2025-01-15/wb_test/",
-            batch_id="wb_test",
+            raw_path="s3://test-bucket/api/example_source/ingest_date=2025-01-15/example_batch/",
+            batch_id="example_batch",
             batch_date="2025-01-15",
         )
 
@@ -62,9 +62,9 @@ FILEFORMAT = JSON FORMAT_OPTIONS ('multiLine' = 'false');
         # Verify values were substituted
         assert "dwh_dev" in sql
         assert "bronze" in sql
-        assert "wb_test" in sql
+        assert "example_batch" in sql
         assert "2025-01-15" in sql
-        assert "s3://test-bucket/api/world_bank_indicators/ingest_date=2025-01-15/wb_test/" in sql
+        assert "s3://test-bucket/api/example_source/ingest_date=2025-01-15/example_batch/" in sql
 
     def test_render_sql_replaces_extra_placeholders(self):
         """Test that source-specific placeholders render without touching defaults."""
@@ -76,14 +76,14 @@ FILEFORMAT = JSON FORMAT_OPTIONS ('multiLine' = 'false');
             sql_template=sql_template,
             catalog="dwh_dev",
             schema="bronze",
-            raw_path="s3://test-bucket/api/fred_economic_series/ingest_date=2025-01-15/fred_test/UNRATE.ndjson",
-            batch_id="fred_test",
+            raw_path="s3://test-bucket/api/example_source/ingest_date=2025-01-15/example_batch/SERIES_1.ndjson",
+            batch_id="example_batch",
             batch_date="2025-01-15",
-            extra_replacements={"${series_id}": "UNRATE"},
+            extra_replacements={"${series_id}": "SERIES_1"},
         )
 
         assert "${series_id}" not in sql
-        assert "'UNRATE'" in sql
+        assert "'SERIES_1'" in sql
         assert "${catalog}" not in sql
 
 
@@ -106,11 +106,11 @@ class TestSplitSqlStatements:
         from ingestion.databricks_sql import split_sql_statements
 
         sql = """
-CREATE TABLE IF NOT EXISTS ${catalog}.${schema}.world_bank_indicators (
+CREATE TABLE IF NOT EXISTS ${catalog}.${schema}.example_source (
     country_id STRING NOT NULL,
     year INT NOT NULL
 );
-COPY INTO ${catalog}.${schema}.world_bank_indicators
+COPY INTO ${catalog}.${schema}.example_source
 FROM '${raw_path}'
 FILEFORMAT = JSON
 FORMAT_OPTIONS ('multiLine' = 'false');
@@ -127,11 +127,11 @@ FORMAT_OPTIONS ('multiLine' = 'false');
 
         # This simulates the actual .sql file with a commented verification query at the end
         sql = """
-CREATE TABLE IF NOT EXISTS ${catalog}.${schema}.world_bank_indicators (country_id STRING);
-COPY INTO ${catalog}.${schema}.world_bank_indicators FROM '${raw_path}' FILEFORMAT = JSON FORMAT_OPTIONS ('multiLine' = 'false');
+CREATE TABLE IF NOT EXISTS ${catalog}.${schema}.example_source (country_id STRING);
+COPY INTO ${catalog}.${schema}.example_source FROM '${raw_path}' FILEFORMAT = JSON FORMAT_OPTIONS ('multiLine' = 'false');
 -- Verification query: count rows and verify batch_id
 -- SELECT _batch_id, COUNT(*) as row_count, MIN(year), MAX(year)
--- FROM ${catalog}.${schema}.world_bank_indicators
+-- FROM ${catalog}.${schema}.example_source
 -- WHERE _batch_id = '${batch_id}'
 -- GROUP BY _batch_id;
 """
