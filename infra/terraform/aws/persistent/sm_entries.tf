@@ -21,3 +21,9 @@ resource "aws_secretsmanager_secret" "databricks" {
   description = "Databricks workspace connection details"
   tags        = var.tags
 }
+
+resource "aws_secretsmanager_secret" "firms" {
+  name        = "${var.project_name}/firms"
+  description = "NASA FIRMS MAP key and configuration"
+  tags        = var.tags
+}
