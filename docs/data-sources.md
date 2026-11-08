@@ -69,17 +69,26 @@ Everything marked **"To verify in spike"** is unknown today. Each source gets on
 | **Mode** | Batch |
 | **Type** | Scheduled HTTP API |
 | **Owner/Provider** | NASA FIRMS |
-| **Endpoint** | To verify in spike |
-| **Authentication** | To verify in spike |
-| **Rate Limits** | To verify in spike |
-| **Response Format** | To verify in spike |
-| **Expected Volume** | To verify in spike |
-| **Data Grain** | To verify in spike (expected: one satellite detection per location and time) |
-| **Raw S3 Path Pattern** | `s3://<bucket>/api/nasa_firms_fires/ingest_date=YYYY-MM-DD/<object>.json` |
-| **Destination** | Bronze: `<catalog>.bronze.nasa_firms_fires` |
+| **Endpoint** | `https://firms.modaps.eosdis.nasa.gov/api/area/csv/<MAP_KEY>/<DATA_ID>/<AREA_COORDINATES>/<DAY_RANGE>[/<DATE>]`; availability at `/api/data_availability/csv/<MAP_KEY>/<DATA_ID>` (verified 2026-11-08) |
+| **Authentication** | API key in the URL path (`<MAP_KEY>`); stored in AWS Secrets Manager as `${project_name}/firms` (`map_key`, optional `base_url`), never in code, fixtures or logs |
+| **Rate Limits** | 5000 transactions per 10 minutes per API key (documented). Ingestion issues one request per satellite per run, far below the limit |
+| **Response Format** | CSV, 14 columns, no trailing newline. Header: `latitude,longitude,bright_ti4,scan,track,acq_date,acq_time,satellite,instrument,confidence,version,bright_ti5,frp,daynight`. `satellite` is `N` / `N20` / `N21`, `instrument` is `VIIRS`, `version` is `2.0NRT`. The availability endpoint returns CSV `data_id,min_date,max_date` |
+| **Expected Volume** | `world/5` on 2026-11-08: NOAA-20 243 788 rows (20.4 MB) and NOAA-21 235 219 rows (19.7 MB), about 155k rows per day combined; `world/1/2026-11-02` for SNPP 35 261 rows (2.9 MB). Small enough for one raw object per satellite per day |
+| **Data Grain** | One satellite detection per location and time (one row per hot spot per overpass, per satellite) |
+| **Raw S3 Path Pattern** | `s3://<bucket>/api/nasa_firms_fires/ingest_date=YYYY-MM-DD/<object>.csv`; one new object per satellite per `batch_id`, never overwritten |
+| **Destination** | Bronze: `<catalog>.bronze.nasa_firms_fires` (three satellites land in one table, discriminated by the CSV `satellite` column) |
 | **Business Questions** | BQ-004 (primary); BQ-005 (corroboration) |
 | **Status** | Selected |
-| **Notes** | Built in P4b. Terms and attribution requirements to be captured in the spike. |
+| **Notes** | Built in P4b. Fetched as three separate requests (`VIIRS_SNPP_NRT`, `VIIRS_NOAA20_NRT`, `VIIRS_NOAA21_NRT`); one satellite failing does not stop the others. A request accepts at most 5 days (`world/7` returns HTTP 400 `Invalid day range. Expects [1..5].`), so ingestion reads `data_availability` per satellite and requests an explicit date instead of `DAY_RANGE=5`. An empty day is a valid 122-byte header-only CSV and is not written to raw. **Suomi NPP stopped delivering new observations on 2026-11-02** (NASA Earthdata data alert), so its `max_date` is an end of data rather than a delay; NOAA-20 and NOAA-21 were one day behind on 2026-11-08. Whether the current UTC day keeps filling during the day is still To verify in spike. Fixtures: `tests/fixtures/nasa_firms_fires/`. |
+
+### Licence and attribution (verified 2026-11-08)
+
+Data and imagery are freely available and may be stored and redistributed; NASA supports full and open sharing of data. The provider texts below are recorded verbatim.
+
+- Acknowledgement in publications (LANCE), from [earthdata.nasa.gov/data/projects/lance](https://www.earthdata.nasa.gov/data/projects/lance): "We acknowledge the use of data and/or imagery from NASA's Land, Atmosphere Near real-time Capability for Earth observations (LANCE) (https://earthdata.nasa.gov/lance), part of NASA's Earth Science Data and Information System (ESDIS)."
+- Image captions, from the [FIRMS FAQ](https://www.earthdata.nasa.gov/data/tools/firms/faq): "when doing so for image captions, please cite it as "NASA FIRMS" and also consider including a direct link to the imagery in FIRMS to allow others to explore the imagery."
+- FIRMS-specific acknowledgement, from the same [FIRMS FAQ](https://www.earthdata.nasa.gov/data/tools/firms/faq): "We acknowledge the use of imagery from the NASA LANCE FIRMS (https://earthdata.nasa.gov/firms), part of the NASA Earth Science Data and Information System (ESDIS)."
+- Disclaimer, from [earthdata.nasa.gov/data/projects/lance/disclaimer](https://www.earthdata.nasa.gov/data/projects/lance/disclaimer): "LANCE is operated by the ESDIS project. The information presented through LANCE, GIBS, Worldview, and FIRMS are provided "as is" and users bear all responsibility and liability for their use of data."
 
 ---
 
