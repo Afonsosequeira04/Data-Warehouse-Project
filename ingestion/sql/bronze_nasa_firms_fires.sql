@@ -1,6 +1,6 @@
 -- Bronze table for NASA FIRMS active fire detections (VIIRS satellites)
 -- Loaded via idempotent COPY INTO from the immutable raw CSVs in S3 (ADR-001)
--- Source: s3://${raw_bucket}/api/nasa_firms_fires/ingest_date=YYYY-MM-DD/<batch_id>/<data_id>_<YYYY-MM-DD>.csv
+-- Source: s3://<raw_bucket>/api/nasa_firms_fires/ingest_date=YYYY-MM-DD/<batch_id>/<data_id>_<YYYY-MM-DD>.csv
 --
 -- All source columns stay STRING in Bronze: ingestion validates structure only
 -- (header + 14 fields per row, ADR-002) and typing/normalisation happens in the
@@ -74,10 +74,10 @@ FROM (
                 1
             )
         ) AS data_id,
-        -- Technical metadata
-        _metadata.file_path AS _source_file,
-        CURRENT_TIMESTAMP() AS _ingested_at,
+        -- Technical metadata, in the same order as the table columns
         '${batch_id}' AS _batch_id,
+        CURRENT_TIMESTAMP() AS _ingested_at,
+        _metadata.file_path AS _source_file,
         'nasa_firms_fires' AS _source_system,
         TO_DATE('${batch_date}') AS _batch_date
     FROM '${raw_path}'
