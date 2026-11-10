@@ -20,9 +20,9 @@ over adding services just to make the architecture look larger.
 
 ```
 Current phase : P4b - NASA FIRMS batch ingestion
-Status        : not started
+Status        : Definition of Done met on 2026-11-10; kept open until ADR-008, ADR-010 and ADR-011 are Accepted
 Last completed: P4 - API 2 ingestion
-Next phase    : P4c - Always-on foundation
+Next phase    : P4c - Always-on foundation (blocked: ADR-008, ADR-010 and ADR-011 are Proposed)
 ```
 
 Rules for this block:
@@ -122,7 +122,8 @@ component exists merely because it appears in the datasheet or architecture diag
 Before modifying an area, inspect the actual files and verify its current state.
 
 At the time of writing the repository contains documentation, Terraform (AWS persistent + Databricks stacks),
-.gitignore, and dependency lock files. No dbt project, no ingestion/orchestration code yet. Verify this rather than trusting this paragraph.
+the shared ingestion core, the NASA FIRMS batch ingestion with its MWAA DAG and Bronze COPY INTO SQL, tests and
+recorded fixtures. There is no dbt project yet. Verify this rather than trusting this paragraph.
 
 The datasheet and README previously contained placeholders such as `<API 1>`, `<API 2>`, and `<SaaS/DB>`. On
 2026-11-06 the source direction changed to an Earth-monitoring platform: EMSC (earthquakes), AISstream (vessel
