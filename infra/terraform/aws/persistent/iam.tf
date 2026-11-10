@@ -74,7 +74,8 @@ resource "aws_iam_policy" "mwaa_execution" {
           aws_secretsmanager_secret.world_bank.arn,
           aws_secretsmanager_secret.fred.arn,
           aws_secretsmanager_secret.macro_watchlist_db.arn,
-          aws_secretsmanager_secret.databricks.arn
+          aws_secretsmanager_secret.databricks.arn,
+          aws_secretsmanager_secret.firms.arn
         ]
       },
       {

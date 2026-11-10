@@ -124,6 +124,20 @@ Wait for the apply to complete. Note the `mwaa_webserver_url` from the outputs.
    - The `world-bank` variable was read from Secrets Manager
    - A JSON file was written to `s3://dwh-mwaa-dags-9015f2/test/hello_world/`
 
+### 5.1 Run a scheduled ingestion DAG (for example `ingest_firms`)
+
+`ingest_firms` is created with `is_paused_upon_creation=True` so a freshly built environment cannot spend
+MWAA time on unsupervised runs. Two consequences when you unpause it:
+
+- Unpausing creates the most recent missing scheduled run immediately (with `catchup=False`, only the latest
+  interval). In the P4b window this run started 7 seconds before the manual trigger and became the run that
+  wrote the evidence batch.
+- That scheduled run uses the DAG defaults, so `backfill_days` is `0`. If you need a backfill, trigger the DAG
+  manually with `{"backfill_days": N}` and expect the scheduled run to be the idempotency check instead.
+
+To avoid ambiguity when collecting evidence, decide before unpausing which run is the evidence run, and record
+its `run_id` in the evidence file.
+
 ### 6. Collect Evidence
 
 Capture the following for the phase evidence (text only, no screenshots):

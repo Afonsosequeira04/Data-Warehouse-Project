@@ -53,6 +53,11 @@ output "databricks_secret_arn" {
   value       = aws_secretsmanager_secret.databricks.arn
 }
 
+output "firms_secret_arn" {
+  description = "ARN of the NASA FIRMS secret"
+  value       = aws_secretsmanager_secret.firms.arn
+}
+
 output "budget_name" {
   description = "Name of the AWS Budget"
   value       = aws_budgets_budget.main.name

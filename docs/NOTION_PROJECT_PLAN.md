@@ -41,7 +41,7 @@ never touch. See `AGENTS.md` (D-001 to D-006) for the full list.
 | P2 | Ephemeral MWAA | **DONE** — repeatable create/destroy of MWAA with a hello DAG |
 | P3 | API 1 ingestion (legacy) | **DONE** — World Bank Indicators -> S3 raw -> Bronze (source retired 2026-11-06) |
 | P4 | API 2 ingestion (legacy) | **DONE** — FRED -> S3 raw -> Bronze (source retired 2026-11-06) |
-| P4b | NASA FIRMS batch ingestion | First current source: scheduled HTTP batch -> S3 raw -> Bronze |
+| P4b | NASA FIRMS batch ingestion | **DONE** — three VIIRS satellites -> S3 raw -> Bronze via COPY INTO (2026-11-10) |
 | P4c | Always-on foundation (EMSC, USGS, NOAA, GDACS) | One container on ECS Fargate -> Kinesis -> Structured Streaming -> Bronze (blocked until ADR-008, ADR-010 and ADR-011 are Accepted) |
 | P5 | dbt Silver + Gold | Models, tests, snapshots over NASA FIRMS, EMSC, USGS, NOAA and GDACS |
 | P6 | Data quality + quarantine | Rejected records visible and explained |
@@ -353,24 +353,32 @@ first; every property not verified there says "To verify in spike".
 
 ### Tasks
 
-- [ ] **Spike:** verify endpoint, authentication (e.g. API key), rate limits, response format, terms/licence and
+- [x] **Spike:** verify endpoint, authentication (e.g. API key), rate limits, response format, terms/licence and
       expected volume. Save real recorded samples (never synthetic stand-ins for the real shape) under
       `tests/fixtures/nasa_firms_fires/` and record the findings in `docs/data-sources.md`.
-- [ ] Create a source-specific client, separate from orchestration.
-- [ ] Read credentials/configuration from environment variables or AWS Secrets Manager; never hard-code them.
-- [ ] Implement bounded retries with backoff and respect the documented rate limits.
-- [ ] Validate the response shape before writing a successful ingestion.
-- [ ] Write raw payloads to the immutable path `s3://<bucket>/api/nasa_firms_fires/ingest_date=YYYY-MM-DD/`.
-- [ ] Generate a batch identifier and include ingestion metadata.
-- [ ] Load Bronze (`dwh_dev.bronze.nasa_firms_fires`) with the mechanism accepted in ADR-001 (COPY INTO via SQL Warehouse).
-- [ ] Add source-specific field validation.
-- [ ] Test: successful run, expected schema failure, and rerun/idempotency (no raw overwrite).
-- [ ] Add the DAG task that runs the client, with a client import/parse test that runs without MWAA.
+- [x] Create a source-specific client, separate from orchestration.
+- [x] Read credentials/configuration from environment variables or AWS Secrets Manager; never hard-code them.
+- [x] Implement bounded retries with backoff and respect the documented rate limits.
+- [x] Validate the response shape before writing a successful ingestion.
+- [x] Write raw payloads to the immutable path `s3://<bucket>/api/nasa_firms_fires/ingest_date=YYYY-MM-DD/`.
+- [x] Generate a batch identifier and include ingestion metadata.
+- [x] Load Bronze (`dwh_dev.bronze.nasa_firms_fires`) with the mechanism accepted in ADR-001 (COPY INTO via SQL Warehouse).
+- [x] Add source-specific field validation.
+- [x] Test: successful run, expected schema failure, and rerun/idempotency (no raw overwrite).
+- [x] Add the DAG task that runs the client, with a client import/parse test that runs without MWAA.
 
 ### Definition of Done
 
 A real NASA FIRMS call produces dated raw objects in S3 and a usable Bronze table with the standard technical
 metadata, the spike samples and findings are committed, and the failure/retry path is tested.
+
+Met on 2026-11-10: batch `nasa_firms_fires_20261110T005534Z_35c6528c151f` wrote three raw objects (139 253 rows
+in total) and loaded them into `dwh_dev.bronze.nasa_firms_fires`; a same-day rerun skipped all three satellites
+and added nothing. The retry/backoff and payload-failure paths are covered by
+`tests/test_core_http.py` and `tests/test_firms_client.py`. Evidence: `docs/evidence/P4b-evidence.md`.
+
+Advancing "Current phase" to P4c is deliberately not done here: P4c is blocked until ADR-008, ADR-010 and
+ADR-011 are `Accepted`, which is Afonso's decision.
 
 ### Evidence to save
 
