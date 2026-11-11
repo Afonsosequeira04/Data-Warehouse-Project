@@ -33,16 +33,6 @@ output "mwaa_execution_role_arn" {
   value       = aws_iam_role.mwaa_execution.arn
 }
 
-output "world_bank_secret_arn" {
-  description = "ARN of the World Bank secret"
-  value       = aws_secretsmanager_secret.world_bank.arn
-}
-
-output "fred_secret_arn" {
-  description = "ARN of the FRED secret"
-  value       = aws_secretsmanager_secret.fred.arn
-}
-
 output "macro_watchlist_db_secret_arn" {
   description = "ARN of the Supabase macro_watchlist_db secret"
   value       = aws_secretsmanager_secret.macro_watchlist_db.arn
