@@ -880,3 +880,5 @@ later dedicated chore, after the shared ingestion core is in place.
 Schedule the later chores explicitly in the PR/backlog: remove the World Bank/FRED code after the shared ingestion
 core is extracted; rename the Supabase secrets in Terraform (plan only, Afonso applies); redraw
 `docs/project-architecture.png`; update `docs/technical_datasheet.pdf`.
+
+Done 2026-11-11: chore `chore/remove-legacy-sources` deleted the retired `world-bank` and `fred` Secrets Manager entries from the persistent stack (names stay reserved during the 30-day recovery window) and moved the `hello_world` DAG to the `databricks` variable.

@@ -8,7 +8,7 @@ This runbook documents the exact commands and procedures to create, validate, us
     - Terraform >= 1.10.0 installed
     - GitHub CLI (`gh`) optional, for PR creation
     - Python 3.12 with a virtual environment for local DAG validation
-    - Secret `cloud-data-platform/world-bank` with value `{"base_url":"https://api.worldbank.org/v2"}` exists in Secrets Manager (one-time manual step)
+    - Secret `cloud-data-platform/databricks` exists in Secrets Manager with the key names `host`, `token` and `warehouse_id` (the container is created by the persistent stack; values are set manually, one-time)
 
 ## Directory Structure
 
@@ -24,7 +24,7 @@ The persistent stack must be applied before the ephemeral stack. It provides:
 - Raw data S3 bucket
 - DAG/requirements S3 bucket
 - MWAA execution role with permissions
-- Secrets Manager entries (including `cloud-data-platform/world-bank`)
+- Secrets Manager entries (including `cloud-data-platform/databricks`) and NASA FIRMS (`cloud-data-platform/firms`)
 - AWS Budget
 - Unity Catalog setup
 
@@ -121,7 +121,7 @@ Wait for the apply to complete. Note the `mwaa_webserver_url` from the outputs.
 3. Wait for the run to complete (should take < 1 minute)
 4. Verify the task `read_variable_and_write_s3` succeeds
 5. Check the task logs to confirm:
-   - The `world-bank` variable was read from Secrets Manager
+   - The `databricks` variable was read from Secrets Manager (key names only are logged)
    - A JSON file was written to `s3://dwh-mwaa-dags-9015f2/test/hello_world/`
 
 ### 5.1 Run a scheduled ingestion DAG (for example `ingest_firms`)
@@ -210,7 +210,7 @@ Record measured values:
 
 2. **Single NAT Gateway** — One NAT Gateway in a single public subnet (us-east-2a) is used for cost optimization. This is not highly available but acceptable for an ephemeral portfolio environment.
 
-3. **Secrets Manager Backend** — Connections and variables use the prefix `cloud-data-platform` configured via `airflow_configuration_options` in Terraform. Secret names in AWS Secrets Manager are `cloud-data-platform/<name>` (e.g., `cloud-data-platform/world-bank`).
+3. **Secrets Manager Backend** — Connections and variables use the prefix `cloud-data-platform` configured via `airflow_configuration_options` in Terraform. Secret names in AWS Secrets Manager are `cloud-data-platform/<name>` (e.g., `cloud-data-platform/databricks`).
 
 4. **DAG Bucket** — The persistent DAG bucket (`dwh-mwaa-dags-<suffix>`) stores DAGs and `requirements.txt`. A rebuilt MWAA environment picks them up automatically with no manual steps.
 
@@ -222,7 +222,7 @@ Record measured values:
 |-------|------------|
 | DAG import errors in Airflow UI | Run pre-flight validation locally first (`pytest tests/test_dag_import.py`) |
 | MWAA create fails with IAM error | Verify persistent stack execution role has CloudWatch Logs permission for pattern `airflow-cloud-data-platform-dev-*` |
-| DAG can't read variable | Verify secret `cloud-data-platform/world-bank` exists in Secrets Manager |
+| DAG can't read variable | Verify secret `cloud-data-platform/databricks` exists in Secrets Manager with the keys `host`, `token` and `warehouse_id` |
 | DAG can't write to S3 | Verify execution role has `S3DagBucketAccess` policy for the DAG bucket |
 | Destroy hangs on NAT Gateway | Wait longer; NAT Gateway deletion can take 10+ minutes |
 | Log group not deleted | Delete manually via `aws logs delete-log-group` |

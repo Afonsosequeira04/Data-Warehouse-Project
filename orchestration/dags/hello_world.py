@@ -7,9 +7,11 @@ from airflow.configuration import conf
 from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from airflow.sdk import DAG, Variable, task
 
+REQUIRED_KEY_NAMES = ("host", "token", "warehouse_id")
+
 with DAG(
     dag_id="hello_world",
-    description="Verify MWAA setup, Secrets Manager backend and DAG bucket access",
+    description="Verify MWAA setup, Secrets Manager backend (databricks variable) and DAG bucket access",
     schedule="@once",
     start_date=datetime(2025, 1, 1, tzinfo=timezone.utc),
     catchup=False,
@@ -23,15 +25,19 @@ with DAG(
 
     @task
     def read_variable_and_write_s3() -> dict:
-        """Read the world-bank variable via the Secrets Manager backend and
+        """Read the databricks variable via the Secrets Manager backend and
         write a small JSON under test/hello_world/ in the DAG bucket."""
-        # Resolved as secret "cloud-data-platform/world-bank". No default:
+        # Resolved as secret "cloud-data-platform/databricks". No default:
         # the task must fail if the secret is missing or has no value.
-        world_bank_config = Variable.get("world-bank", deserialize_json=True)
+        databricks_config = Variable.get("databricks", deserialize_json=True)
 
         # Never put the secret content in an error message (it ends up in logs).
-        if not isinstance(world_bank_config, dict) or "base_url" not in world_bank_config:
-            raise ValueError("world-bank secret must be a JSON object with a 'base_url' key")
+        # Only key names are inspected and reported; values are never read into text.
+        if not isinstance(databricks_config, dict):
+            raise ValueError("databricks secret must be a JSON object")
+        missing = [name for name in REQUIRED_KEY_NAMES if name not in databricks_config]
+        if missing:
+            raise ValueError(f"databricks secret is missing required keys: {missing}")
 
         dag_bucket = conf.get("mwaa", "dag_bucket", fallback=None)
         if not dag_bucket:
@@ -42,11 +48,11 @@ with DAG(
 
         now = datetime.now(timezone.utc)
         key = f"test/hello_world/run_{now.strftime('%Y%m%dT%H%M%SZ')}.json"
-        key_names = sorted(world_bank_config.keys())  # key names only, never values
+        key_names = sorted(databricks_config.keys())  # key names only, never values
         payload = {
             "dag_id": "hello_world",
             "written_at": now.isoformat(),
-            "world_bank_keys": key_names,
+            "databricks_keys": key_names,
             "dag_bucket": dag_bucket,
             "status": "success",
         }
@@ -58,7 +64,7 @@ with DAG(
             replace=True,
         )
 
-        print(f"Wrote s3://{dag_bucket}/{key} (world-bank keys: {key_names})")
-        return {"bucket": dag_bucket, "key": key, "world_bank_keys": key_names}
+        print(f"Wrote s3://{dag_bucket}/{key} (databricks keys: {key_names})")
+        return {"bucket": dag_bucket, "key": key, "databricks_keys": key_names}
 
     read_variable_and_write_s3()
